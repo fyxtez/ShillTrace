@@ -11,10 +11,11 @@ static LAST_SENT: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
 /// telegram_sniper. A per-category cooldown prevents a DEX outage from
 /// flooding the operator with one notification for every tracked token.
 pub async fn important(category: &str, message: &str) {
-    if std::env::var("TELEGRAM_BOT_TOKEN").is_err()
-        || std::env::var("TELEGRAM_CHAT_ID").is_err()
-    {
-        tracing::warn!(category, "Telegram alert skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing");
+    if std::env::var("TELEGRAM_BOT_TOKEN").is_err() || std::env::var("TELEGRAM_CHAT_ID").is_err() {
+        tracing::warn!(
+            category,
+            "Telegram alert skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing"
+        );
         return;
     }
 
@@ -32,9 +33,7 @@ pub async fn important(category: &str, message: &str) {
         }
     };
 
-    if should_send {
-        if let Err(error) = telegram_notify::send(message).await {
-            tracing::error!(%error, category, "Failed to send Telegram operational alert");
-        }
+    if should_send && let Err(error) = telegram_notify::send(message).await {
+        tracing::error!(%error, category, "Failed to send Telegram operational alert");
     }
 }

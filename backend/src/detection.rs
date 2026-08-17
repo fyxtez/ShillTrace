@@ -9,7 +9,10 @@ pub struct CandidateAddress {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AddressKind { Evm, Solana }
+pub enum AddressKind {
+    Evm,
+    Solana,
+}
 
 static EVM: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\b0x[a-f0-9]{40}\b").unwrap());
 static SOLANA: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b").unwrap());
@@ -23,16 +26,24 @@ pub fn detect_addresses(text: &str) -> Vec<CandidateAddress> {
     for hit in EVM.find_iter(text) {
         let normalized = hit.as_str().to_lowercase();
         if unique.insert(normalized.clone()) {
-            result.push(CandidateAddress { address: normalized, address_kind: AddressKind::Evm });
+            result.push(CandidateAddress {
+                address: normalized,
+                address_kind: AddressKind::Evm,
+            });
         }
     }
 
     for hit in SOLANA.find_iter(text) {
         let candidate = hit.as_str();
-        if bs58::decode(candidate).into_vec().is_ok_and(|bytes| bytes.len() == 32)
+        if bs58::decode(candidate)
+            .into_vec()
+            .is_ok_and(|bytes| bytes.len() == 32)
             && unique.insert(candidate.to_owned())
         {
-            result.push(CandidateAddress { address: candidate.to_owned(), address_kind: AddressKind::Solana });
+            result.push(CandidateAddress {
+                address: candidate.to_owned(),
+                address_kind: AddressKind::Solana,
+            });
         }
     }
     result
@@ -48,4 +59,3 @@ mod tests {
         assert_eq!(detect_addresses(text).len(), 2);
     }
 }
-

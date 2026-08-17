@@ -2,14 +2,8 @@ use crate::config::Config;
 use anyhow::Result;
 use grammers_client::{Client, SignInError};
 use grammers_mtsender::SenderPool;
-use grammers_session::{
-    storages::SqliteSession,
-    updates::UpdatesLike,
-};
-use std::{
-    io,
-    sync::Arc,
-};
+use grammers_session::{storages::SqliteSession, updates::UpdatesLike};
+use std::{io, sync::Arc};
 use tokio::sync::mpsc::Receiver;
 
 // Newer grammers revisions expose SenderPool::updates as Tokio's bounded
@@ -28,10 +22,7 @@ pub async fn connect(config: &Config) -> Result<Initialization> {
 
     let session = SqliteSession::open(session_path).await?;
 
-    let pool = SenderPool::new(
-        Arc::new(session),
-        config.telegram_api_id,
-    );
+    let pool = SenderPool::new(Arc::new(session), config.telegram_api_id);
 
     let client = Client::new(pool.handle);
     let updates_receiver = pool.updates;
@@ -43,10 +34,7 @@ pub async fn connect(config: &Config) -> Result<Initialization> {
     if !client.is_authorized().await? {
         tracing::info!("Telegram session needs authentication; requesting OTP");
         let token = client
-            .request_login_code(
-                &config.telegram_phone_number,
-                &config.telegram_api_hash,
-            )
+            .request_login_code(&config.telegram_phone_number, &config.telegram_api_hash)
             .await?;
 
         println!("Enter Telegram OTP:");
@@ -59,10 +47,7 @@ pub async fn connect(config: &Config) -> Result<Initialization> {
 
             Err(SignInError::PasswordRequired(password_token)) => {
                 client
-                                       .check_password(
-                        password_token,
-                        &config.telegram_password,
-                    )
+                    .check_password(password_token, &config.telegram_password)
                     .await?;
             }
 
@@ -78,10 +63,7 @@ pub async fn connect(config: &Config) -> Result<Initialization> {
     let me = client.get_me().await?;
     let full_name = me.full_name().to_string();
 
-    tracing::info!(
-        user = full_name.as_str(),
-        "Telegram connected"
-    );
+    tracing::info!(user = full_name.as_str(), "Telegram connected");
 
     Ok(Initialization {
         client,

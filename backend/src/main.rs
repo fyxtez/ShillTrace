@@ -20,9 +20,7 @@ async fn main() -> anyhow::Result<()> {
     // run always shows database, Telegram, channel-sync and HTTP progress.
     let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(log_filter)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(log_filter).init();
 
     let config = config::Config::from_env()?;
     tracing::info!("Connecting to PostgreSQL");
@@ -54,9 +52,7 @@ async fn main() -> anyhow::Result<()> {
     // Run Telegram ingestion independently from the HTTP server so incoming
     // channel messages continue being processed while Axum handles requests.
     tokio::spawn(async move {
-        if let Err(error) =
-            telegram::run(telegram_config, telegram_pool, telegram_events).await
-        {
+        if let Err(error) = telegram::run(telegram_config, telegram_pool, telegram_events).await {
             tracing::error!(
                 %error,
                 "telegram ingestion stopped"

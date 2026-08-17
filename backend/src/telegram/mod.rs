@@ -76,7 +76,6 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
             // concurrent outbound requests) so message intake never blocks on market
             // data resolution.
 
-            
             // One malformed or temporarily unavailable token must not stop the
             // entire Telegram update stream and hide every later shill.
             match ingest_candidate(

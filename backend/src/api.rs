@@ -1,7 +1,17 @@
-use crate::{market::MarketClient, models::{ChannelView, ShillView}, notifications};
+use crate::{
+    market::MarketClient,
+    models::{ChannelView, ShillView},
+    notifications,
+};
 use axum::{
-    extract::{Path, Query, State}, http::{HeaderValue, StatusCode},
-    response::{IntoResponse, Sse, sse::{Event, KeepAlive}}, routing::{delete, get, patch, post}, Json, Router,
+    Json, Router,
+    extract::{Path, Query, State},
+    http::{HeaderValue, StatusCode},
+    response::{
+        IntoResponse, Sse,
+        sse::{Event, KeepAlive},
+    },
+    routing::{delete, get, patch, post},
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -21,7 +31,11 @@ pub struct AppState {
 
 pub fn router(state: AppState, frontend_origin: &str) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin(frontend_origin.parse::<HeaderValue>().expect("valid FRONTEND_ORIGIN"))
+        .allow_origin(
+            frontend_origin
+                .parse::<HeaderValue>()
+                .expect("valid FRONTEND_ORIGIN"),
+        )
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any);
     Router::new()
@@ -45,9 +59,16 @@ async fn health(State(state): State<AppState>) -> Json<Value> {
 }
 
 #[derive(Deserialize)]
-struct ShillQuery { unseen: Option<bool>, channel_id: Option<i64>, include_removed: Option<bool> }
+struct ShillQuery {
+    unseen: Option<bool>,
+    channel_id: Option<i64>,
+    include_removed: Option<bool>,
+}
 
-async fn list_shills(State(state): State<AppState>, Query(query): Query<ShillQuery>) -> Result<Json<Vec<ShillView>>, ApiError> {
+async fn list_shills(
+    State(state): State<AppState>,
+    Query(query): Query<ShillQuery>,
+) -> Result<Json<Vec<ShillView>>, ApiError> {
     let rows = sqlx::query_as::<_, ShillView>(r#"
         SELECT s.id,s.token_id,t.symbol,t.name AS token_name,t.contract_address,t.chain_id,t.image_url,t.pair_address,
                t.website_url,t.twitter_url,t.telegram_url,
@@ -67,32 +88,66 @@ async fn list_shills(State(state): State<AppState>, Query(query): Query<ShillQue
     Ok(Json(rows))
 }
 
-async fn mark_seen(State(state): State<AppState>, Path(id): Path<i64>) -> Result<Json<Value>, ApiError> {
+async fn mark_seen(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Value>, ApiError> {
     let changed = sqlx::query("UPDATE shills SET seen_at=COALESCE(seen_at,NOW()) WHERE id=$1")
-        .bind(id).execute(&state.pool).await?.rows_affected();
-    if changed == 0 { return Err(ApiError::not_found("shill not found")) }
-    let _ = state.events.send(json!({"type":"shill_seen","shill_id":id}).to_string());
+        .bind(id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+    if changed == 0 {
+        return Err(ApiError::not_found("shill not found"));
+    }
+    let _ = state
+        .events
+        .send(json!({"type":"shill_seen","shill_id":id}).to_string());
     Ok(Json(json!({"ok":true})))
 }
 
-async fn remove_token(State(state): State<AppState>, Path(id): Path<i64>) -> Result<Json<Value>, ApiError> {
+async fn remove_token(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Value>, ApiError> {
     let changed = sqlx::query("UPDATE tracking_periods SET status='removed',stopped_at=NOW() WHERE token_id=$1 AND status='active'")
         .bind(id).execute(&state.pool).await?.rows_affected();
-    if changed == 0 { return Err(ApiError::not_found("active token not found")) }
-    let _ = state.events.send(json!({"type":"token_removed","token_id":id}).to_string());
+    if changed == 0 {
+        return Err(ApiError::not_found("active token not found"));
+    }
+    let _ = state
+        .events
+        .send(json!({"type":"token_removed","token_id":id}).to_string());
     Ok(Json(json!({"ok":true})))
 }
 
-async fn retry_token(State(state): State<AppState>, Path(id): Path<i64>) -> Result<Json<Value>, ApiError> {
+async fn retry_token(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Value>, ApiError> {
     let row: Option<(String,)> = sqlx::query_as("SELECT contract_address FROM tokens WHERE id=$1")
-        .bind(id).fetch_optional(&state.pool).await?;
-    let Some((address,)) = row else { return Err(ApiError::not_found("token not found")) };
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await?;
+    let Some((address,)) = row else {
+        return Err(ApiError::not_found("token not found"));
+    };
     let snapshot = match state.market.resolve(&address).await {
         Ok(snapshot) => snapshot,
         Err(error) => {
             let detail = error.to_string();
-            let category = if detail.contains("429") { "dexscreener_rate_limit" } else { "manual_market_retry" };
-            notifications::important(category, &format!("ShillTrace\nManual market retry failed\nToken: {address}\nError: {detail}")).await;
+            let category = if detail.contains("429") {
+                "dexscreener_rate_limit"
+            } else {
+                "manual_market_retry"
+            };
+            notifications::important(
+                category,
+                &format!(
+                    "ShillTrace\nManual market retry failed\nToken: {address}\nError: {detail}"
+                ),
+            )
+            .await;
             return Err(ApiError::market(error));
         }
     };
@@ -107,30 +162,42 @@ async fn retry_token(State(state): State<AppState>, Path(id): Path<i64>) -> Resu
         // Robinhood and other newly-added chains may not yet exist in
         // GeckoTerminal. A manual retry for a recent live shill can safely use
         // the current DEX Screener market cap as the closest timestamp sample.
-        let historical = state.market.historical_market_cap(&snapshot, &address, shilled_at).await;
+        let historical = state
+            .market
+            .historical_market_cap(&snapshot, &address, shilled_at)
+            .await;
         // The earliest stored sample was captured immediately after ingestion
         // and is the most accurate fallback for chains without candle history.
         let earliest_sample: Option<f64> = sqlx::query_scalar("SELECT market_cap FROM market_cap_samples WHERE token_id=$1 AND tracking_period_id=$2 ORDER BY recorded_at LIMIT 1")
             .bind(id).bind(tracking_period_id).fetch_optional(&state.pool).await?;
         let initial = historical.ok().or(earliest_sample).or_else(|| {
-            (Utc::now().signed_duration_since(shilled_at).num_minutes() <= 5).then_some(snapshot.current_market_cap)
+            (Utc::now().signed_duration_since(shilled_at).num_minutes() <= 5)
+                .then_some(snapshot.current_market_cap)
         });
         if let Some(initial) = initial {
             sqlx::query("UPDATE shills SET initial_market_cap=$2,max_market_cap=$3,market_status='tracking' WHERE id=$1")
                 .bind(shill_id).bind(initial).bind(snapshot.current_market_cap).execute(&state.pool).await?;
         }
     }
-    let _ = state.events.send(json!({"type":"token_retry_succeeded","token_id":id}).to_string());
+    let _ = state
+        .events
+        .send(json!({"type":"token_retry_succeeded","token_id":id}).to_string());
     Ok(Json(json!({"ok":true})))
 }
 
-async fn shill_history(State(state): State<AppState>, Path(id): Path<i64>) -> Result<Json<Value>, ApiError> {
+async fn shill_history(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Value>, ApiError> {
     // History belongs to one shill/tracking period, not every lifetime period
     // of a token. The synthetic first point guarantees the graph starts at the
     // exact Initial MC and Telegram shill timestamp selected by the user.
     let anchor: Option<(i64, DateTime<Utc>, Option<f64>)> = sqlx::query_as(
-        "SELECT tracking_period_id,shilled_at,initial_market_cap FROM shills WHERE id=$1"
-    ).bind(id).fetch_optional(&state.pool).await?;
+        "SELECT tracking_period_id,shilled_at,initial_market_cap FROM shills WHERE id=$1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?;
     let Some((tracking_period_id, shilled_at, initial_market_cap)) = anchor else {
         return Err(ApiError::not_found("shill not found"));
     };
@@ -141,7 +208,11 @@ async fn shill_history(State(state): State<AppState>, Path(id): Path<i64>) -> Re
     if let Some(initial) = initial_market_cap {
         history.push(json!({"time":shilled_at,"market_cap":initial,"is_initial":true}));
     }
-    history.extend(samples.into_iter().map(|(time, market_cap)| json!({"time":time,"market_cap":market_cap,"is_initial":false})));
+    history.extend(
+        samples.into_iter().map(
+            |(time, market_cap)| json!({"time":time,"market_cap":market_cap,"is_initial":false}),
+        ),
+    );
     Ok(Json(json!(history)))
 }
 
@@ -159,44 +230,70 @@ async fn list_channels(State(state): State<AppState>) -> Result<Json<Vec<Channel
 }
 
 #[derive(Deserialize)]
-struct IgnoredBody { ignored: bool }
+struct IgnoredBody {
+    ignored: bool,
+}
 
-async fn set_ignored(State(state): State<AppState>, Path(id): Path<i64>, Json(body): Json<IgnoredBody>) -> Result<Json<Value>, ApiError> {
+async fn set_ignored(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<IgnoredBody>,
+) -> Result<Json<Value>, ApiError> {
     // Ignored channels cannot remain invisibly pinned; re-enabling monitoring
     // returns them to All Channels until the user pins them again.
     // Returning a channel to monitoring also clears its ignored-list-only
     // hidden flag, so ignoring it again later never makes it vanish silently.
     let changed = sqlx::query("UPDATE channels SET is_ignored=$2,is_pinned=CASE WHEN $2 THEN FALSE ELSE is_pinned END,is_hidden=CASE WHEN $2 THEN is_hidden ELSE FALSE END,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel'")
         .bind(id).bind(body.ignored).execute(&state.pool).await?.rows_affected();
-    if changed == 0 { return Err(ApiError::not_found("channel not found")) }
+    if changed == 0 {
+        return Err(ApiError::not_found("channel not found"));
+    }
     Ok(Json(json!({"ok":true})))
 }
 
 #[derive(Deserialize)]
-struct PinnedBody { pinned: bool }
+struct PinnedBody {
+    pinned: bool,
+}
 
-async fn set_pinned(State(state): State<AppState>, Path(id): Path<i64>, Json(body): Json<PinnedBody>) -> Result<Json<Value>, ApiError> {
+async fn set_pinned(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<PinnedBody>,
+) -> Result<Json<Value>, ApiError> {
     // Pinning affects presentation only; monitoring and historical data remain
     // unchanged, so channels can move between sections without side effects.
     let changed = sqlx::query("UPDATE channels SET is_pinned=$2,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel' AND is_ignored=FALSE")
         .bind(id).bind(body.pinned).execute(&state.pool).await?.rows_affected();
-    if changed == 0 { return Err(ApiError::not_found("monitored channel not found")) }
+    if changed == 0 {
+        return Err(ApiError::not_found("monitored channel not found"));
+    }
     Ok(Json(json!({"ok":true})))
 }
 
 #[derive(Deserialize)]
-struct HiddenBody { hidden: bool }
+struct HiddenBody {
+    hidden: bool,
+}
 
-async fn set_hidden(State(state): State<AppState>, Path(id): Path<i64>, Json(body): Json<HiddenBody>) -> Result<Json<Value>, ApiError> {
+async fn set_hidden(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<HiddenBody>,
+) -> Result<Json<Value>, ApiError> {
     // Hiding is deliberately limited to ignored channels: it keeps the large
     // discovery list tidy without ever concealing a channel being monitored.
     let changed = sqlx::query("UPDATE channels SET is_hidden=$2,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel' AND is_ignored=TRUE")
         .bind(id).bind(body.hidden).execute(&state.pool).await?.rows_affected();
-    if changed == 0 { return Err(ApiError::not_found("ignored channel not found")) }
+    if changed == 0 {
+        return Err(ApiError::not_found("ignored channel not found"));
+    }
     Ok(Json(json!({"ok":true})))
 }
 
-async fn events(State(state): State<AppState>) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
+async fn events(
+    State(state): State<AppState>,
+) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
     let mut receiver = state.events.subscribe();
     let stream = async_stream::stream! {
         loop {
@@ -210,14 +307,34 @@ async fn events(State(state): State<AppState>) -> Sse<impl futures_core::Stream<
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
 }
 
-struct ApiError { status: StatusCode, message: String }
+struct ApiError {
+    status: StatusCode,
+    message: String,
+}
 impl ApiError {
-    fn not_found(message: &str) -> Self { Self { status: StatusCode::NOT_FOUND, message: message.into() } }
-    fn market(error: anyhow::Error) -> Self { Self { status: StatusCode::BAD_GATEWAY, message: error.to_string() } }
+    fn not_found(message: &str) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
+            message: message.into(),
+        }
+    }
+    fn market(error: anyhow::Error) -> Self {
+        Self {
+            status: StatusCode::BAD_GATEWAY,
+            message: error.to_string(),
+        }
+    }
 }
 impl From<sqlx::Error> for ApiError {
-    fn from(error: sqlx::Error) -> Self { Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: error.to_string() } }
+    fn from(error: sqlx::Error) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: error.to_string(),
+        }
+    }
 }
 impl IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response { (self.status, Json(json!({"error":self.message}))).into_response() }
+    fn into_response(self) -> axum::response::Response {
+        (self.status, Json(json!({"error":self.message}))).into_response()
+    }
 }
