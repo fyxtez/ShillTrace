@@ -368,6 +368,22 @@ img.chain-icon{width:24px;height:24px;padding:1px;object-fit:contain;background:
 .table-box .token-identity .chain-label>span{font-size:13px!important}
 .table-box .token-identity .chain-icon{width:20px;height:20px}
 
+/* Destructive confirmation owns a complete overlay stacking layer so sticky
+   detail actions can never overlap its warning or buttons. */
+.confirm-backdrop{position:absolute;inset:0;z-index:40;padding:24px;display:grid;place-items:center;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);border-radius:inherit;animation:confirmFade .14s ease-out}
+.confirm-dialog{width:min(440px,100%);padding:22px;border:1px solid #873b3b;border-radius:9px;background:#151010;box-shadow:0 24px 70px rgba(0,0,0,.8);display:grid;gap:12px;animation:confirmEnter .18s ease-out}
+.confirm-dialog>b{font-size:16px;line-height:1.35}.confirm-dialog>span{font-size:13px;line-height:1.6;color:var(--secondary)}
+.confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}.confirm-actions button{min-width:112px;height:40px;padding:0 15px;border:1px solid var(--border);border-radius:6px;background:#1a1a1a;cursor:pointer}.confirm-actions .danger{min-width:170px;background:#8e2222;border-color:#b43535;color:#fff}.confirm-actions .danger:hover{background:#ad2929}
+@keyframes confirmFade{from{opacity:0}to{opacity:1}}@keyframes confirmEnter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+
+/* display:none cannot animate and exposed labels before the rail had room.
+   Keep labels measurable, clip them while collapsed, then fade/reveal them
+   after the grid-width transition has already started opening the sidebar. */
+.sidebar .brand>span,.sidebar nav button>span,.sidebar .connection strong>span,.sidebar .connection>small,.sidebar .contact-card a>span,.sidebar .contact-card a>svg:last-child{opacity:1;visibility:visible;clip-path:inset(0 0 0 0);transform:translateX(0);transition:opacity .14s ease .12s,clip-path .2s ease .08s,transform .2s ease .08s,visibility 0s linear 0s}
+.sidebar.collapsed .brand>span,.sidebar.collapsed nav button>span,.sidebar.collapsed .connection strong>span,.sidebar.collapsed .connection>small,.sidebar.collapsed .contact-card a>span,.sidebar.collapsed .contact-card a>svg:last-child{display:block;opacity:0;visibility:hidden;clip-path:inset(0 100% 0 0);transform:translateX(-7px);transition:opacity .07s ease,clip-path .1s ease,transform .1s ease,visibility 0s linear .24s;pointer-events:none}
+.sidebar.collapsed .brand>span,.sidebar.collapsed nav button>span,.sidebar.collapsed .connection strong>span,.sidebar.collapsed .connection>small,.sidebar.collapsed .contact-card a>span,.sidebar.collapsed .contact-card a>svg:last-child{width:0;max-width:0;overflow:hidden;white-space:nowrap}
+.sidebar.collapsed nav button>span{flex:0 0 0}.sidebar.collapsed .connection{overflow:hidden}
+
 /* Channel token rows receive a stronger gold-accented hover so the clickable
    navigation target is obvious before opening its All Tokens detail modal. */
 .channel-shill[role="button"]{transition:background .14s ease,box-shadow .14s ease,transform .14s ease}

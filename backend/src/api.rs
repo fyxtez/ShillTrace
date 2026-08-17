@@ -110,11 +110,58 @@ async fn remove_token(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
-    let changed = sqlx::query("UPDATE tracking_periods SET status='removed',stopped_at=NOW() WHERE token_id=$1 AND status='active'")
-        .bind(id).execute(&state.pool).await?.rows_affected();
+    let mut tx = state.pool.begin().await?;
+    let message_ids: Vec<i64> = sqlx::query_scalar(
+        r#"
+        SELECT first_message_id FROM shills WHERE token_id=$1
+        UNION
+        SELECT sm.telegram_message_id
+        FROM shill_messages sm
+        JOIN shills s ON s.id=sm.shill_id
+        WHERE s.token_id=$1
+        "#,
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    // Token removal is intentionally destructive: delete dependent history in
+    // foreign-key order so no market samples or tracking records survive it.
+    sqlx::query("DELETE FROM market_cap_samples WHERE token_id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM shills WHERE token_id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM tracking_periods WHERE token_id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    let changed = sqlx::query("DELETE FROM tokens WHERE id=$1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
     if changed == 0 {
-        return Err(ApiError::not_found("active token not found"));
+        return Err(ApiError::not_found("token not found"));
     }
+
+    // A Telegram message may contain multiple contracts, so remove only
+    // message rows that became unreferenced after deleting this token.
+    sqlx::query(
+        r#"
+        DELETE FROM telegram_messages m
+        WHERE m.id=ANY($1)
+          AND NOT EXISTS (SELECT 1 FROM shills s WHERE s.first_message_id=m.id)
+          AND NOT EXISTS (SELECT 1 FROM shill_messages sm WHERE sm.telegram_message_id=m.id)
+        "#,
+    )
+    .bind(&message_ids)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     let _ = state
         .events
         .send(json!({"type":"token_removed","token_id":id}).to_string());

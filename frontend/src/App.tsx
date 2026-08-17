@@ -1,4 +1,4 @@
-import { Fragment,useCallback,useEffect,useMemo,useState,type MouseEvent,type ReactNode } from 'react'
+import { Fragment,useCallback,useEffect,useMemo,useRef,useState,type MouseEvent,type ReactNode } from 'react'
 import { BellRing,Check,CircleSlash2,Copy,Database,ExternalLink,Eye,EyeOff,Globe2,Mail,Menu,Pin,PinOff,RefreshCw,Search,Send,Trash2,Users,X } from 'lucide-react'
 import { api } from './api'
 import type { Channel,HistoryPoint,Page,Shill } from './types'
@@ -95,7 +95,10 @@ function Detail({shill,history,pollSeconds,onRemove,onRetry}:{shill:Shill,histor
  const padre=shill.chain_id?`https://trade.padre.gg/trade/${shill.chain_id}/${shill.contract_address}`:null
  // Contract identity belongs in the hero beside the symbol; the metadata row
  // can then balance source channel against the resolved project name.
- return <section className="detail"><header className="detail-hero"><Avatar shill={shill} size={62}/><div className="detail-identity"><div className="detail-title-line"><h2>{shill.symbol??'Unresolved token'}</h2><button className={`hero-contract ${contractCopied?'copied':''}`} title="Copy contract address" onClick={async()=>{await navigator.clipboard.writeText(shill.contract_address);setContractCopied(true);window.setTimeout(()=>setContractCopied(false),1600)}}><span>{short(shill.contract_address)}</span>{contractCopied?<Check/>:<Copy/>}</button></div><ChainLabel chain={shill.chain_id}/></div><div className="hero-token-name"><small>Token name</small><b>{shill.token_name??'Name unavailable'}</b></div><TokenSocials shill={shill}/><div className="big-x"><b className="gain">{fx(current)}</b><small>Current X</small></div></header><div className="metrics"><Metric label="Initial MC" value={cap(shill.initial_market_cap)}/><Metric label="Current MC" value={cap(shill.current_market_cap)}/><Metric label="Max X" value={fx(max)} positive/><Metric label="Time shilled" value={ago(shill.shilled_at)}/></div>{shill.market_status==='unavailable'&&<div className="warning"><div><b>Initial market cap unavailable</b><span>DEX Screener may have current data while historical candles are unavailable. Retry to resolve it now.</span></div><button onClick={onRetry}><RefreshCw/>Retry</button></div>}<div className="detail-content"><div><div className="meta"><span><small>Channel</small><b><ChannelAvatar channelId={shill.channel_id} name={shill.channel_name} photo={shill.channel_has_photo} size={24}/>{shill.channel_name}</b></span></div><div className="message"><small>Original message</small><b><ChannelAvatar channelId={shill.channel_id} name={shill.channel_name} photo={shill.channel_has_photo} size={34}/>{shill.channel_name}</b><p>{shill.message}</p></div></div><Chart points={history} pollSeconds={pollSeconds} shilledAt={shill.shilled_at}/></div><footer className="detail-actions"><a href={dex} target="_blank">Open DEX chart<ExternalLink/></a>{padre&&<a href={padre} target="_blank">Open Terminal chart<ExternalLink/></a>}<CopyActionButton value={shill.contract_address}/><button className="remove" onClick={()=>setConfirm(true)}>Remove token<Trash2/></button></footer>{confirm&&<div className="confirm"><b>Stop tracking {shill.symbol??'this token'}?</b><span>History stays saved. A future shill starts a new tracking period.</span><div><button onClick={()=>setConfirm(false)}>Cancel</button><button className="danger" onClick={onRemove}>Remove</button></div></div>}</section>
+ // A dedicated backdrop keeps destructive confirmation above the sticky
+ // action footer; nesting the old popover in the detail stacking context let
+ // the full-width Remove button paint over its text and controls.
+ return <section className="detail"><header className="detail-hero"><Avatar shill={shill} size={62}/><div className="detail-identity"><div className="detail-title-line"><h2>{shill.symbol??'Unresolved token'}</h2><button className={`hero-contract ${contractCopied?'copied':''}`} title="Copy contract address" onClick={async()=>{await navigator.clipboard.writeText(shill.contract_address);setContractCopied(true);window.setTimeout(()=>setContractCopied(false),1600)}}><span>{short(shill.contract_address)}</span>{contractCopied?<Check/>:<Copy/>}</button></div><ChainLabel chain={shill.chain_id}/></div><div className="hero-token-name"><small>Token name</small><b>{shill.token_name??'Name unavailable'}</b></div><TokenSocials shill={shill}/><div className="big-x"><b className="gain">{fx(current)}</b><small>Current X</small></div></header><div className="metrics"><Metric label="Initial MC" value={cap(shill.initial_market_cap)}/><Metric label="Current MC" value={cap(shill.current_market_cap)}/><Metric label="Max X" value={fx(max)} positive/><Metric label="Time shilled" value={ago(shill.shilled_at)}/></div>{shill.market_status==='unavailable'&&<div className="warning"><div><b>Initial market cap unavailable</b><span>DEX Screener may have current data while historical candles are unavailable. Retry to resolve it now.</span></div><button onClick={onRetry}><RefreshCw/>Retry</button></div>}<div className="detail-content"><div><div className="meta"><span><small>Channel</small><b><ChannelAvatar channelId={shill.channel_id} name={shill.channel_name} photo={shill.channel_has_photo} size={24}/>{shill.channel_name}</b></span></div><div className="message"><small>Original message</small><b><ChannelAvatar channelId={shill.channel_id} name={shill.channel_name} photo={shill.channel_has_photo} size={34}/>{shill.channel_name}</b><p>{shill.message}</p></div></div><Chart points={history} pollSeconds={pollSeconds} shilledAt={shill.shilled_at}/></div><footer className="detail-actions"><a href={dex} target="_blank">Open DEX chart<ExternalLink/></a>{padre&&<a href={padre} target="_blank">Open Terminal chart<ExternalLink/></a>}<CopyActionButton value={shill.contract_address}/><button className="remove" onClick={()=>setConfirm(true)}>Remove token<Trash2/></button></footer>{confirm&&<div className="confirm-backdrop" onMouseDown={()=>setConfirm(false)}><div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-token-title" onMouseDown={event=>event.stopPropagation()}><b id="remove-token-title">Permanently remove {shill.symbol??'this token'}?</b><span>This deletes the token, its shills, tracking periods, and every market-cap sample. This cannot be undone.</span><div className="confirm-actions"><button onClick={()=>setConfirm(false)}>Cancel</button><button className="danger" onClick={onRemove}>Remove permanently</button></div></div></div>}</section>
 }
 function Metric({label,value,positive}:{label:string,value:string,positive?:boolean}){return <div className="metric"><small>{label}</small><b className={positive?'gain':''}>{value}</b></div>}
 
@@ -125,9 +128,28 @@ export default function App(){
  // The renamed storage key prevents old Signal Ledger branding from leaking
  // into browser state while keeping this preference local to ShillTrace.
  const [sidebarCollapsed,setSidebarCollapsed]=useState(()=>sessionStorage.getItem('shilltrace-sidebar-collapsed')==='true')
+ const alertAudio=useRef<HTMLAudioElement|null>(null)
  useEffect(()=>sessionStorage.setItem('shilltrace-sidebar-collapsed',String(sidebarCollapsed)),[sidebarCollapsed])
  const refresh=useCallback(async()=>{try{const channelHistory=page==='channels'||page==='ignored';const [ss,cs]=await Promise.all([api.shills(page==='new',undefined,channelHistory),api.channels()]);setShills(ss);setChannels(cs);setSelected(old=>old?ss.find(s=>s.id===old.id)??null:page==='new'?ss[0]??null:null)}finally{setLoading(false)}},[page])
- useEffect(()=>{refresh()},[refresh]);useEffect(()=>{const events=new EventSource(api.events);events.onmessage=refresh;return()=>events.close()},[refresh]);
+ useEffect(()=>{refresh()},[refresh]);
+ useEffect(()=>{
+  const audio=new Audio('/alert.mp3');audio.preload='auto';alertAudio.current=audio
+  // Browsers require one user gesture before scripted audio; silently priming
+  // the bundled alert on the first gesture lets later SSE shills ring instantly.
+  const unlock=()=>{audio.muted=true;void audio.play().then(()=>{audio.pause();audio.currentTime=0;audio.muted=false}).catch(()=>{audio.muted=false})}
+  window.addEventListener('pointerdown',unlock,{once:true})
+  return()=>{window.removeEventListener('pointerdown',unlock);audio.pause();alertAudio.current=null}
+ },[])
+ useEffect(()=>{
+  const events=new EventSource(api.events)
+  events.onmessage=event=>{
+   // Only a genuinely ingested shill deserves an audible alert; market ticks,
+   // seen changes, removals, and SSE reconnects continue refreshing silently.
+   try{if(JSON.parse(event.data).type==='new_shill'){const audio=alertAudio.current;if(audio){audio.currentTime=0;void audio.play().catch(()=>{})}}}catch{/* A malformed event must not stop live refreshes. */}
+   void refresh()
+  }
+  return()=>events.close()
+ },[refresh]);
  // Polling is a safety net for browser/SSE interruptions, guaranteeing that a
  // newly ingested shill appears without requiring a manual page refresh.
  useEffect(()=>{const timer=window.setInterval(refresh,15_000);return()=>window.clearInterval(timer)},[refresh]);useEffect(()=>{selected?api.history(selected.id).then(setHistory).catch(()=>setHistory([])):setHistory([])},[selected])
