@@ -2,7 +2,10 @@ use crate::{market::MarketClient, notifications};
 use chrono::Utc;
 use serde_json::json;
 use sqlx::PgPool;
-use tokio::{sync::broadcast, time::{Duration, interval}};
+use tokio::{
+    sync::broadcast,
+    time::{Duration, interval},
+};
 
 pub fn spawn(pool: PgPool, market: MarketClient, events: broadcast::Sender<String>, seconds: u64) {
     tokio::spawn(async move {
@@ -21,11 +24,26 @@ pub fn spawn(pool: PgPool, market: MarketClient, events: broadcast::Sender<Strin
     });
 }
 
-async fn poll_once(pool: &PgPool, market: &MarketClient, events: &broadcast::Sender<String>) -> anyhow::Result<()> {
+async fn poll_once(
+    pool: &PgPool,
+    market: &MarketClient,
+    events: &broadcast::Sender<String>,
+) -> anyhow::Result<()> {
     let active: Vec<(i64, i64, String, chrono::DateTime<Utc>)> = sqlx::query_as(
         "SELECT t.id, p.id, t.contract_address, p.started_at FROM tokens t JOIN tracking_periods p ON p.token_id=t.id AND p.status='active' WHERE t.market_status='tracking'"
     ).fetch_all(pool).await?;
 
+    // TODO:
+    // HOTPATH BOTTLENECK: this loop processes active tokens one at a time —
+    // each iteration awaits an HTTP call plus a full begin/4x-execute/commit
+    // transaction before moving to the next token. With enough active tokens
+    // (or a few slow responses), one cycle can easily exceed the poll interval.
+    // Also note: tokio::time::interval defaults to MissedTickBehavior::Burst,
+    // so a late cycle causes the next ticks to fire back-to-back with no gap,
+    // which compounds pressure on the DEX Screener rate limit.
+    // TODO: use futures::stream::iter(active).for_each_concurrent(N, ...) to
+    // parallelize per-token polling (cap N to stay under the rate limit), and
+    // consider interval.set_missed_tick_behavior(MissedTickBehavior::Delay).
     for (token_id, period_id, address, started_at) in active {
         match market.resolve(&address).await {
             Ok(snapshot) => {
@@ -54,8 +72,16 @@ async fn poll_once(pool: &PgPool, market: &MarketClient, events: &broadcast::Sen
                 // One-minute samples are frequent enough to explain movement
                 // without producing a noisy 15-second chart or excess rows.
                 let age = now.signed_duration_since(started_at).num_seconds();
-                let bucket = if age <= 604_800 { 60 } else if age <= 2_592_000 { 300 } else { 3_600 };
-                let sampled_at = chrono::DateTime::from_timestamp((now.timestamp() / bucket) * bucket, 0).unwrap_or(now);
+                let bucket = if age <= 604_800 {
+                    60
+                } else if age <= 2_592_000 {
+                    300
+                } else {
+                    3_600
+                };
+                let sampled_at =
+                    chrono::DateTime::from_timestamp((now.timestamp() / bucket) * bucket, 0)
+                        .unwrap_or(now);
                 sqlx::query("INSERT INTO market_cap_samples(token_id,tracking_period_id,market_cap,recorded_at) VALUES($1,$2,$3,$4) ON CONFLICT(token_id,tracking_period_id,recorded_at) DO UPDATE SET market_cap=EXCLUDED.market_cap")
                     .bind(token_id).bind(period_id).bind(snapshot.current_market_cap).bind(sampled_at).execute(&mut *tx).await?;
                 tx.commit().await?;
@@ -65,9 +91,16 @@ async fn poll_once(pool: &PgPool, market: &MarketClient, events: &broadcast::Sen
                 // Missing data remains informational; only the user can stop a
                 // token, so a temporary DEX outage never silently removes it.
                 sqlx::query("UPDATE tokens SET last_market_error=$2,updated_at=NOW() WHERE id=$1")
-                    .bind(token_id).bind(error.to_string()).execute(pool).await?;
+                    .bind(token_id)
+                    .bind(error.to_string())
+                    .execute(pool)
+                    .await?;
                 let detail = error.to_string();
-                let category = if detail.contains("429") { "dexscreener_rate_limit" } else { "dexscreener_market_error" };
+                let category = if detail.contains("429") {
+                    "dexscreener_rate_limit"
+                } else {
+                    "dexscreener_market_error"
+                };
                 notifications::important(
                     category,
                     &format!("ShillTrace\nDEX Screener market lookup failed\nToken: {address}\nError: {detail}"),

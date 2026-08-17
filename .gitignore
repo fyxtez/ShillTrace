@@ -3,6 +3,7 @@
 *.session-shm
 *.session-wal
 
+TODO.md
 zip.sh
-
 *.zip
+

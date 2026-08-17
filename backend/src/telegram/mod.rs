@@ -2,7 +2,7 @@ mod dialogs;
 mod initialize;
 
 use crate::{config::Config, detection, market::MarketClient, notifications};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use grammers_client::update::Update;
 use grammers_mtsender::UpdatesConfiguration;
 use serde_json::json;
@@ -66,6 +66,17 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
 
         let mut ingested_any = false;
         for candidate in candidates {
+            // TODO:
+            // HOTPATH BOTTLENECK: ingest_candidate() below makes synchronous HTTP calls
+            // (market.resolve + historical_market_cap, up to 20s timeout each) while
+            // holding up this loop. The next Telegram update is not read from the
+            // stream until this completes, so a slow/rate-limited API call stalls
+            // ingestion for every channel, not just this one.
+            // TODO: tokio::spawn each ingest_candidate call (with a semaphore to cap
+            // concurrent outbound requests) so message intake never blocks on market
+            // data resolution.
+
+            
             // One malformed or temporarily unavailable token must not stop the
             // entire Telegram update stream and hide every later shill.
             match ingest_candidate(
@@ -76,9 +87,12 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
                 sent_at,
                 &candidate.address,
             )
-            .await {
+            .await
+            {
                 Ok(()) => ingested_any = true,
-                Err(error) => tracing::error!(%error, address = candidate.address, channel_id, "Failed to ingest token candidate"),
+                Err(error) => {
+                    tracing::error!(%error, address = candidate.address, channel_id, "Failed to ingest token candidate")
+                }
             }
         }
         if ingested_any {
@@ -117,12 +131,18 @@ async fn ingest_candidate(
         let detail = resolved.as_ref().unwrap_err().to_string();
         sqlx::query("UPDATE tokens SET market_status='unavailable',last_market_error=$2,updated_at=NOW() WHERE id=$1")
             .bind(token_id).bind(&detail).execute(pool).await?;
-        let category = if detail.contains("429") { "dexscreener_rate_limit" } else { "dexscreener_ingestion_error" };
+        let category = if detail.contains("429") {
+            "dexscreener_rate_limit"
+        } else {
+            "dexscreener_ingestion_error"
+        };
         // A failed first lookup prevents Initial MC creation, so notify the
         // operator immediately instead of leaving only an unavailable badge.
         notifications::important(
             category,
-            &format!("ShillTrace\nNew shill market lookup failed\nContract: {address}\nError: {detail}"),
+            &format!(
+                "ShillTrace\nNew shill market lookup failed\nContract: {address}\nError: {detail}"
+            ),
         )
         .await;
     }
@@ -151,9 +171,17 @@ async fn ingest_candidate(
     }
 
     let initial = match &resolved {
-        Ok(snapshot) => match market.historical_market_cap(snapshot, address, sent_at).await {
+        Ok(snapshot) => match market
+            .historical_market_cap(snapshot, address, sent_at)
+            .await
+        {
             Ok(value) => Some(value),
-            Err(error) if chrono::Utc::now().signed_duration_since(sent_at).num_minutes() <= 5 => {
+            Err(error)
+                if chrono::Utc::now()
+                    .signed_duration_since(sent_at)
+                    .num_minutes()
+                    <= 5 =>
+            {
                 // Some new chains (currently Robinhood) are present on DEX
                 // Screener before GeckoTerminal supports historical candles.
                 // For live Telegram shills, the immediately resolved market cap
