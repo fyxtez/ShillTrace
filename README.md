@@ -89,17 +89,6 @@ cd ../frontend && npm run build
 - Later messages from the same channel attach to its existing shill.
 - Unavailable historical market data is informational and can be retried from the UI.
 
-## Repository layout
-
-```text
-signal-ledger/
-├── backend/          Rust API, Telegram ingestion, tracker, and migrations
-├── frontend/         React dashboard and local visual assets
-├── docker-compose.yml
-├── LICENSE
-└── SECURITY.md
-```
-
 ## Security and license
 
 See [SECURITY.md](SECURITY.md) before deploying or reporting a vulnerability. This is private proprietary software; see [LICENSE](LICENSE).
