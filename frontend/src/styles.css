@@ -192,6 +192,42 @@ img.chain-icon{width:24px;height:24px;padding:1px;object-fit:contain;background:
    span rule previously made the X glyph blue. */
 .detail-hero .token-socials>a{color:var(--secondary)!important}.detail-hero .token-socials>a:hover{color:var(--accent-light)!important}.detail-hero .x-social-mark{color:inherit!important;text-transform:none}
 
+/* Static dashboard copy is intentionally non-selectable so clicking labels,
+   metrics, rows, or navigation never resembles an editable text surface. Form
+   controls remain selectable so search and future text inputs work normally. */
+.app{user-select:none;-webkit-user-select:none}
+.app input,.app textarea,.app [contenteditable="true"]{user-select:text;-webkit-user-select:text}
+
+/* All Tokens is the archive's primary scanning view, so it gets larger type,
+   roomier rows, and stronger token/channel imagery without inflating the denser
+   inbox and detail workspaces elsewhere in the application. */
+.all-layout .summary .metric{min-height:76px;padding:13px 20px;justify-content:center}
+.all-layout .summary .metric small{font-size:13px}
+.all-layout .summary .metric b{font-size:22px}
+.all-layout>.table-box table{font-size:14px}
+.all-layout>.table-box th{height:46px;font-size:12px;font-weight:700}
+.all-layout>.table-box td{height:68px}
+.all-layout>.table-box .token-cell>.avatar{width:42px!important;height:42px!important}
+.all-layout>.table-box .channel-cell>.avatar{width:36px!important;height:36px!important}
+.all-layout>.table-box .token-identity{gap:5px}
+.all-layout>.table-box .token-identity .chain-label{font-size:11px}
+.all-layout>.table-box .token-identity .chain-icon{width:20px;height:20px}
+.all-layout>.table-box .token-socials>a,.all-layout>.table-box .token-socials>.social-disabled{width:32px;height:32px}
+.all-layout>.table-box .status{padding:5px 9px;font-size:12px}
+
+/* The collapsed rail uses one shared center line for its toggle, navigation,
+   status, and compact contact actions. Keeping contact as icon buttons prevents
+   the narrow mode from hiding the only direct way to reach the developer. */
+.sidebar.collapsed .brand{justify-content:center;padding-left:0}
+.sidebar.collapsed nav button{position:relative;border-left-width:1px}
+.sidebar.collapsed nav button.active{box-shadow:inset 3px 0 var(--accent)}
+.sidebar.collapsed .sidebar-bottom{justify-items:center;width:100%}
+.sidebar.collapsed .contact-card{display:grid;grid-template-columns:1fr;width:50px;border:0;background:transparent;gap:7px;overflow:visible}
+.sidebar.collapsed .contact-card a{width:50px;min-height:46px;padding:0;display:grid;place-items:center;border:1px solid var(--border);border-radius:7px;background:#0d0d0d}
+.sidebar.collapsed .contact-card a>svg:first-child{width:19px}
+.sidebar.collapsed .contact-card a>span,.sidebar.collapsed .contact-card a>svg:last-child{display:none}
+.sidebar.collapsed .connection{width:50px}
+
 /* Channel sections separate personal pins from the remaining monitored list
    without duplicating cards. */
 .channel-section{margin-top:18px}.channel-section>h2{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:16px}.channel-section>h2 b{padding:2px 7px;border-radius:5px;background:#242018;color:var(--accent-light);font-size:11px}.channel-section-empty{min-height:72px;display:grid;place-items:center;border:1px dashed #302a20;border-radius:7px;color:var(--muted);font-size:12px}.channel-actions{display:flex;align-items:center;gap:7px}.channel-actions button{display:flex;align-items:center;justify-content:center;gap:6px}.channel-actions svg{width:13px}.channel-actions .pin-channel{border-color:#3c3529;color:var(--secondary)}.channel-actions .pin-channel:hover,.channel-actions .pin-channel.active{border-color:#8a601d;color:var(--accent-light);background:#20190d}.channel-column .last-shill{color:#8f8f89;font-size:11px}
@@ -199,3 +235,183 @@ img.chain-icon{width:24px;height:24px;padding:1px;object-fit:contain;background:
 /* The synthetic Initial MC point is gold, making the chart's exact starting
    baseline visibly different from later green tracker samples. */
 .chart .chart-point.initial-point{fill:var(--accent);stroke:var(--accent-light);opacity:1}
+
+/* Compact contact buttons and every glyph now share the exact rail center;
+   explicit centering avoids SVG view-box differences making icons look offset. */
+.sidebar.collapsed .contact-card{margin-inline:auto;justify-items:center}
+.sidebar.collapsed .contact-card a{justify-self:center;text-align:center}
+.sidebar.collapsed .contact-card a>svg:first-child{display:block;margin:auto}
+
+/* The text-based X mark has less intrinsic visual area than Lucide icons, so a
+   larger size and weight make all three social actions feel equally prominent. */
+.token-socials .x-social-mark{font-size:19px;font-weight:900;line-height:1}
+.all-layout>.table-box .token-socials .x-social-mark,.drawer .token-socials .x-social-mark{font-size:21px}
+
+/* Token names form the middle identity line: ticker remains strongest while
+   the project name adds context before the chain badge. */
+.token-name{max-width:190px;overflow:hidden;text-overflow:ellipsis;color:var(--secondary);font-size:11px;line-height:1.2}
+.all-layout .token-name{font-size:13px;color:#c6c6c1}
+
+/* Native SVG title bubbles wait for the browser's tooltip delay. The custom
+   chart tooltip is painted immediately above the hovered sample. */
+.chart-tooltip{pointer-events:none}
+.chart-tooltip rect{fill:#090909;stroke:#e7e7e3;stroke-width:1.2}
+.chart-tooltip text{fill:#f3f3f1;font-size:13px;font-weight:600}
+
+/* Ignored-channel visibility controls distinguish monitoring state from list
+   organization and keep both actions readable beside the existing button. */
+.channel-title-actions{display:flex;align-items:center;gap:10px}
+.hidden-toggle{height:44px;padding:0 14px;border:1px solid #75551d;border-radius:8px;background:#151109;color:var(--accent-light);display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.hidden-toggle svg{width:16px}.hidden-toggle:hover,.hidden-toggle.active{background:var(--accent);color:#111;border-color:var(--accent-light)}
+.channel-actions .hide-channel{border-color:#3c3c38;color:var(--secondary)}
+.channel-actions .hide-channel:hover{border-color:#8a601d;color:var(--accent-light);background:#20190d}
+
+/* The All Tokens detail modal is a reading workspace, so every major element
+   scales together instead of leaving a large panel filled with tiny controls. */
+.drawer-backdrop .drawer{width:min(1440px,100%);height:min(900px,calc(100vh - 56px))}
+.drawer .detail-hero{height:122px;padding:22px 24px;gap:18px}
+.drawer .detail-hero>.avatar{width:76px!important;height:76px!important}
+.drawer .detail-hero h2{font-size:34px}
+.drawer .detail-hero .chain-label{font-size:13px}
+.drawer .detail-hero .chain-icon{width:27px;height:27px}
+.drawer .token-socials>a,.drawer .token-socials>.social-disabled{width:38px;height:38px}
+.drawer .token-socials svg{width:18px;height:18px}
+.drawer .big-x b{font-size:34px}.drawer .big-x small{font-size:12px}
+.drawer .metrics{top:122px}.drawer .metric{min-height:82px;padding:14px 20px}
+.drawer .metric small{font-size:12px}.drawer .metric b{font-size:24px}
+.drawer .detail-content{margin-top:82px;grid-template-columns:340px minmax(0,1fr);gap:22px;padding:22px 24px 86px}
+.drawer .meta small,.drawer .message>small{font-size:11px}.drawer .meta b,.drawer .message>b,.drawer .message p{font-size:14px}
+.drawer .message{min-height:190px;padding:16px}.drawer .chart header{font-size:14px}.drawer .chart header small{font-size:11px}
+.drawer .detail-actions{left:24px;right:24px;bottom:22px;gap:12px}.drawer .detail-actions a,.drawer .detail-actions button{height:48px;font-size:14px}
+
+/* The compact footer is anchored to the sidebar's mathematical center rather
+   than its padded content box, eliminating the remaining leftward offset. */
+.sidebar.collapsed .sidebar-bottom{position:relative;left:50%;width:50px;transform:translateX(-50%)}
+.sidebar.collapsed .contact-card,.sidebar.collapsed .connection{position:relative;left:auto;margin-inline:0;transform:none}
+.sidebar.collapsed .contact-card a{display:flex;align-items:center;justify-content:center}
+.sidebar.collapsed .contact-card a>svg:first-child{flex:none;margin:0}
+
+/* Supporting chart copy and compact metric labels were still undersized on
+   large desktop displays, so this pass raises them without changing layout. */
+.chart header small{font-size:13px;line-height:1.5}
+.meta small,.message>small{font-size:12px}
+.meta b,.message>b{font-size:14px}
+.inbox-card dt{font-size:12px}.inbox-card dd{font-size:15px}
+
+/* The modal receives one final proportional scale-up so metadata, graph copy,
+   values, and actions remain readable at ultrawide resolutions. */
+.drawer-backdrop .drawer{width:min(1540px,100%);height:min(940px,calc(100vh - 40px))}
+.drawer .detail-hero{height:136px;padding:26px 28px}
+.drawer .detail-hero>.avatar{width:84px!important;height:84px!important}
+.drawer .detail-hero h2{font-size:38px}
+.drawer .detail-hero .chain-label{font-size:15px}
+.drawer .detail-hero .chain-icon{width:30px;height:30px}
+.drawer .big-x b{font-size:40px}.drawer .big-x small{font-size:14px}
+.drawer .metrics{top:136px}.drawer .metric{min-height:94px;padding:18px 22px}
+.drawer .metric small{font-size:14px}.drawer .metric b{font-size:28px}
+.drawer .detail-content{margin-top:94px;grid-template-columns:380px minmax(0,1fr);gap:26px;padding:28px 28px 96px}
+.drawer .meta{gap:16px}.drawer .meta small,.drawer .message>small{font-size:13px}
+.drawer .meta b,.drawer .message>b,.drawer .message p{font-size:16px}
+.drawer .message{min-height:215px;padding:18px}.drawer .chart header{font-size:16px}.drawer .chart header small{font-size:13px}
+.drawer .chart-legend{font-size:13px}.drawer .axis-label{font-size:14px}
+.drawer .detail-actions{left:28px;right:28px;bottom:26px}.drawer .detail-actions a,.drawer .detail-actions button{height:54px;font-size:16px}
+
+/* Channel section headings extend into a full-width rule so Pinned and All
+   Channels are visibly delimited even when cards above have uneven heights. */
+.channel-section>h2{width:100%}
+.channel-section>h2:after{content:"";height:1px;flex:1;margin-left:4px;background:linear-gradient(90deg,#72511c,#28251f 70%,transparent)}
+
+/* The full token name fills the row's unused middle span while the identity
+   stays grouped at the left and social actions remain aligned at the right. */
+.token-cell>.token-name{flex:1;max-width:none;padding:0 22px;text-align:center;font-size:13px;color:#c6c6c1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.all-layout .token-cell>.token-name{font-size:15px;font-weight:600}
+
+/* Social controls are icon buttons, not text links; removing anchor decoration
+   prevents the text-based X glyph from inheriting a visible underline. */
+.token-socials>a,.token-socials>a:hover,.token-socials>a:focus{text-decoration:none}
+.token-socials .x-social-mark{text-decoration:none!important;border-bottom:0!important}
+
+/* Network identity is operationally important when symbols overlap, so chain
+   copy is intentionally larger across table, inbox, and detail contexts. */
+.chain-label{font-size:13px}
+.inbox-token small .chain-label{font-size:12px}
+.all-layout .token-identity .chain-label{font-size:13px}
+
+/* Channel shill rows now navigate to All Tokens details and advertise that
+   behavior with pointer/focus feedback for mouse and keyboard users. */
+.channel-shill[role="button"]{cursor:pointer;outline:none}
+.channel-shill[role="button"]:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+
+/* Review cards keep quick inspection controls compact beneath the primary
+   metrics, while the address copy control stays attached to message text. */
+.inbox-message{display:flex;align-items:flex-start;gap:7px}
+.inbox-message>span{min-width:0;flex:1;overflow-wrap:anywhere}
+.inbox-message .copy{flex:none;margin-top:-4px}
+.inbox-quick{display:flex;justify-content:flex-end;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid #252525}
+.inbox-quick a{height:28px;padding:0 9px;border:1px solid #3a352c;border-radius:5px;background:#121212;color:var(--secondary);display:flex;align-items:center;gap:5px;text-decoration:none;font-size:10px;font-weight:700}
+.inbox-quick a svg{width:11px}.inbox-quick a:hover{border-color:#8a601d;color:var(--accent-light);background:#20190d}
+
+/* The inbox contract is one compact information strip: address context and a
+   labeled copy action stay together instead of floating in unrelated rows. */
+.inbox-contract{margin:11px 0 12px;padding:9px 10px;border:1px solid #292929;border-radius:6px;background:#0c0c0c;display:flex;align-items:center;gap:10px}
+.inbox-contract>span{min-width:0;display:grid;gap:3px;flex:1}
+.inbox-contract small{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.inbox-contract b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c8c8c4;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:500}
+.compact-copy{height:30px;padding:0 9px;border:1px solid #4a4030;border-radius:5px;background:#17130d;color:var(--accent-light);display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.compact-copy svg{width:12px}.compact-copy:hover,.compact-copy.copied{border-color:var(--accent);background:#251b0c}
+.inbox-quick{margin-top:9px;padding-top:0;border-top:0}
+.inbox-quick a{height:27px;background:transparent}
+
+/* Earlier generic identity rules still won on non-archive tables. This more
+   specific override makes Solana/Robinhood/etc. readable in every token row. */
+.table-box .token-identity .chain-label{font-size:13px!important}
+.table-box .token-identity .chain-label>span{font-size:13px!important}
+.table-box .token-identity .chain-icon{width:20px;height:20px}
+
+/* Channel token rows receive a stronger gold-accented hover so the clickable
+   navigation target is obvious before opening its All Tokens detail modal. */
+.channel-shill[role="button"]{transition:background .14s ease,box-shadow .14s ease,transform .14s ease}
+.channel-shill[role="button"]:hover{background:#211a0d;box-shadow:inset 4px 0 var(--accent),inset 0 0 0 1px #493717;transform:translateX(2px)}
+
+/* Header identity now combines symbol, compact contract, and chain while the
+   lower two-column metadata area remains balanced as Channel | Token name. */
+.detail-identity{min-width:0;display:grid;gap:7px}
+.detail-title-line{display:flex;align-items:center;gap:14px;min-width:0}
+.detail-title-line h2{flex:none}
+.hero-contract{max-width:220px;height:34px;padding:0 5px 0 10px;border:1px solid #34312b;border-radius:6px;background:#12110f;display:flex!important;align-items:center;gap:5px;color:var(--secondary)!important;text-transform:none!important;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px!important}
+.hero-contract>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit!important;text-transform:none!important;font-size:inherit!important}
+.hero-contract .copy{width:27px;height:27px;flex:none}
+.meta{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.meta>span:last-child{padding-left:18px;border-left:1px solid var(--border)}
+.meta>span:last-child b{overflow-wrap:anywhere;color:var(--text)}
+.drawer .hero-contract{max-width:280px;height:40px;font-size:14px!important}
+.drawer .hero-contract .copy{width:31px;height:31px}
+
+/* Contract surfaces are single large copy targets. Button resets preserve the
+   card/pill styling while allowing address text, whitespace, and icon clicks. */
+button.inbox-contract{width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.inbox-contract>strong{height:30px;padding:0 9px;border:1px solid #4a4030;border-radius:5px;background:#17130d;color:var(--accent-light);display:flex;align-items:center;gap:5px;font-size:10px;white-space:nowrap}
+.inbox-contract>strong svg{width:12px}
+.inbox-contract:hover,.inbox-contract.copied{border-color:#76551d;background:#13100b}
+.inbox-contract:hover>strong,.inbox-contract.copied>strong{border-color:var(--accent);background:#251b0c}
+
+button.hero-contract{cursor:pointer;text-align:left;font:inherit}
+.hero-contract>svg{width:14px;height:14px;flex:none;color:var(--muted)}
+.hero-contract:hover,.hero-contract.copied{border-color:#805b1d;background:#21190d;color:var(--accent-light)!important}
+
+/* Token name occupies the hero's flexible center lane between identity and
+   social actions, with enough contrast to read without competing with symbol. */
+.hero-token-name{min-width:150px;flex:1;display:grid;justify-items:center;gap:5px;text-align:center}
+.hero-token-name small{font-size:11px;color:var(--muted)}
+.hero-token-name b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:15px}
+.drawer .hero-token-name small{font-size:13px}.drawer .hero-token-name b{font-size:19px}
+
+/* The nested chain text had its own older 11px selector; overriding the inner
+   span makes the visible blockchain name genuinely larger, not only its icon. */
+.detail-hero .chain-label>span{font-size:14px!important}
+.drawer .detail-hero .chain-label>span{font-size:16px!important}
+
+/* With Token name moved to the hero, the source metadata becomes one clean
+   channel block and no longer carries an empty right-side divider. */
+.meta:has(>span:only-child){grid-template-columns:1fr}
+.meta>span:only-child{padding-left:0;border-left:0}

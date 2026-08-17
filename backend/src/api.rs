@@ -34,6 +34,7 @@ pub fn router(state: AppState, frontend_origin: &str) -> Router {
         .route("/api/channels", get(list_channels))
         .route("/api/channels/{id}/ignored", patch(set_ignored))
         .route("/api/channels/{id}/pinned", patch(set_pinned))
+        .route("/api/channels/{id}/hidden", patch(set_hidden))
         .route("/api/events", get(events))
         .layer(cors)
         .with_state(state)
@@ -146,7 +147,7 @@ async fn shill_history(State(state): State<AppState>, Path(id): Path<i64>) -> Re
 
 async fn list_channels(State(state): State<AppState>) -> Result<Json<Vec<ChannelView>>, ApiError> {
     let rows = sqlx::query_as::<_, ChannelView>(r#"
-        SELECT c.telegram_id,c.name,c.kind,c.is_ignored,c.is_pinned,c.has_photo,COUNT(s.id) AS shill_count,
+        SELECT c.telegram_id,c.name,c.kind,c.is_ignored,c.is_pinned,c.is_hidden,c.has_photo,COUNT(s.id) AS shill_count,
                MAX(s.shilled_at) AS last_shill_at,
                AVG(t.current_market_cap/NULLIF(s.initial_market_cap,0)) AS average_current_x,
                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.current_market_cap/NULLIF(s.initial_market_cap,0)) AS median_current_x,
@@ -163,7 +164,9 @@ struct IgnoredBody { ignored: bool }
 async fn set_ignored(State(state): State<AppState>, Path(id): Path<i64>, Json(body): Json<IgnoredBody>) -> Result<Json<Value>, ApiError> {
     // Ignored channels cannot remain invisibly pinned; re-enabling monitoring
     // returns them to All Channels until the user pins them again.
-    let changed = sqlx::query("UPDATE channels SET is_ignored=$2,is_pinned=CASE WHEN $2 THEN FALSE ELSE is_pinned END,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel'")
+    // Returning a channel to monitoring also clears its ignored-list-only
+    // hidden flag, so ignoring it again later never makes it vanish silently.
+    let changed = sqlx::query("UPDATE channels SET is_ignored=$2,is_pinned=CASE WHEN $2 THEN FALSE ELSE is_pinned END,is_hidden=CASE WHEN $2 THEN is_hidden ELSE FALSE END,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel'")
         .bind(id).bind(body.ignored).execute(&state.pool).await?.rows_affected();
     if changed == 0 { return Err(ApiError::not_found("channel not found")) }
     Ok(Json(json!({"ok":true})))
@@ -178,6 +181,18 @@ async fn set_pinned(State(state): State<AppState>, Path(id): Path<i64>, Json(bod
     let changed = sqlx::query("UPDATE channels SET is_pinned=$2,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel' AND is_ignored=FALSE")
         .bind(id).bind(body.pinned).execute(&state.pool).await?.rows_affected();
     if changed == 0 { return Err(ApiError::not_found("monitored channel not found")) }
+    Ok(Json(json!({"ok":true})))
+}
+
+#[derive(Deserialize)]
+struct HiddenBody { hidden: bool }
+
+async fn set_hidden(State(state): State<AppState>, Path(id): Path<i64>, Json(body): Json<HiddenBody>) -> Result<Json<Value>, ApiError> {
+    // Hiding is deliberately limited to ignored channels: it keeps the large
+    // discovery list tidy without ever concealing a channel being monitored.
+    let changed = sqlx::query("UPDATE channels SET is_hidden=$2,updated_at=NOW() WHERE telegram_id=$1 AND kind='channel' AND is_ignored=TRUE")
+        .bind(id).bind(body.hidden).execute(&state.pool).await?.rows_affected();
+    if changed == 0 { return Err(ApiError::not_found("ignored channel not found")) }
     Ok(Json(json!({"ok":true})))
 }
 

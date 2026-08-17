@@ -9,6 +9,9 @@ export const api={
   removeToken:(id:number)=>request(`/api/tokens/${id}`,{method:'DELETE'}), retryToken:(id:number)=>request(`/api/tokens/${id}/retry`,{method:'POST'}),
   setIgnored:(id:number,ignored:boolean)=>request(`/api/channels/${id}/ignored`,{method:'PATCH',body:JSON.stringify({ignored})}),
   setPinned:(id:number,pinned:boolean)=>request(`/api/channels/${id}/pinned`,{method:'PATCH',body:JSON.stringify({pinned})}),
+  // Hidden is a persistent presentation preference and does not change whether
+  // Telegram messages from the channel are monitored.
+  setHidden:(id:number,hidden:boolean)=>request(`/api/channels/${id}/hidden`,{method:'PATCH',body:JSON.stringify({hidden})}),
   health:()=>request<Health>('/api/health'),
   history:(shillId:number)=>request<HistoryPoint[]>(`/api/shills/${shillId}/history`), photo:(id:number)=>`${API}/photos/${id}.jpg`, events:`${API}/api/events`,
 }

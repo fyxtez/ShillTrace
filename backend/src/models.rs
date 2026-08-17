@@ -34,6 +34,7 @@ pub struct ChannelView {
     pub kind: String,
     pub is_ignored: bool,
     pub is_pinned: bool,
+    pub is_hidden: bool,
     pub has_photo: bool,
     pub shill_count: i64,
     pub last_shill_at: Option<DateTime<Utc>>,

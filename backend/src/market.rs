@@ -34,7 +34,6 @@ struct Pair {
     chain_id: String,
     pair_address: String,
     base_token: Token,
-    quote_token: Token,
     price_usd: Option<String>,
     market_cap: Option<f64>,
     liquidity: Option<Liquidity>,
@@ -61,6 +60,16 @@ struct GeckoResponse { data: GeckoData }
 struct GeckoData { attributes: GeckoAttributes }
 #[derive(Deserialize)]
 struct GeckoAttributes { ohlcv_list: Vec<Vec<f64>> }
+#[derive(Deserialize)]
+struct GeckoPoolResponse { data: GeckoPoolData }
+#[derive(Deserialize)]
+struct GeckoPoolData { relationships: GeckoPoolRelationships }
+#[derive(Deserialize)]
+struct GeckoPoolRelationships { base_token: GeckoRelationship, quote_token: GeckoRelationship }
+#[derive(Deserialize)]
+struct GeckoRelationship { data: GeckoRelationshipData }
+#[derive(Deserialize)]
+struct GeckoRelationshipData { id: String }
 
 impl MarketClient {
     pub fn new() -> Result<Self> {
@@ -77,15 +86,17 @@ impl MarketClient {
     pub async fn resolve(&self, address: &str) -> Result<MarketSnapshot> {
         let response = self.http.get(DEX_SEARCH).query(&[("q", address)]).send().await?
             .error_for_status()?.json::<SearchResponse>().await?;
+        // DEX Screener pair-level priceUsd and marketCap describe the base
+        // token. Quote-token matches would attach another asset's valuation to
+        // the detected contract, so only true base-token pools are eligible.
         let mut pairs: Vec<Pair> = response.pairs.into_iter().filter(|pair| {
             pair.base_token.address.eq_ignore_ascii_case(address)
-                || pair.quote_token.address.eq_ignore_ascii_case(address)
         }).collect();
         pairs.sort_by(|a, b| liquidity(b).partial_cmp(&liquidity(a)).unwrap_or(Ordering::Equal));
 
         let pair = pairs.into_iter().find(|pair| pair.market_cap.is_some() && pair.price_usd.is_some())
             .context("DEX Screener found no pair with market-cap data")?;
-        let token = if pair.base_token.address.eq_ignore_ascii_case(address) { &pair.base_token } else { &pair.quote_token };
+        let token = &pair.base_token;
         let current_price = pair.price_usd.as_deref().context("missing priceUsd")?.parse::<f64>()?;
         let current_market_cap = pair.market_cap.context("missing marketCap")?;
         if current_market_cap <= 0.0 || current_price <= 0.0 { bail!("non-positive market data") }
@@ -118,7 +129,10 @@ impl MarketClient {
         at: DateTime<Utc>,
     ) -> Result<f64> {
         let network = gecko_network(&snapshot.chain_id)?;
-        let token_side = self.token_side(network, &snapshot.pair_address, address).await.unwrap_or("base");
+        // DEX search can return a pool where the tracked contract is the quote
+        // token. Gecko must chart that exact side or its price is multiplied by
+        // an unrelated supply and produces impossible historical market caps.
+        let token_side = self.token_side(network, &snapshot.pair_address, address).await?;
         let before = (at.timestamp() + 60).to_string();
         let url = format!("{GECKO}/networks/{network}/pools/{}/ohlcv/minute", snapshot.pair_address);
         let response = self.http.get(url).query(&[
@@ -128,14 +142,28 @@ impl MarketClient {
         let candle = response.data.attributes.ohlcv_list.first().context("no historical candle")?;
         let close = *candle.get(4).context("incomplete historical candle")?;
         let inferred_supply = snapshot.current_market_cap / snapshot.current_price;
-        Ok(close * inferred_supply)
+        let historical = close * inferred_supply;
+        // New Telegram updates are resolved almost immediately. A historical
+        // value thousands of times away from the live MC therefore indicates a
+        // provider/pool mismatch, not real price movement, and must not persist.
+        if Utc::now().signed_duration_since(at).num_minutes().abs() <= 10 {
+            let ratio = historical / snapshot.current_market_cap;
+            if !(0.1..=10.0).contains(&ratio) {
+                bail!("historical market cap failed recent-call sanity check: ratio {ratio:.2}x")
+            }
+        }
+        Ok(historical)
     }
 
-    async fn token_side(&self, _network: &str, _pair: &str, _address: &str) -> Result<&'static str> {
-        // DEX Screener normally returns the tracked asset as base token. Keeping
-        // this hook separate lets us add Gecko pool metadata lookup if a quote
-        // token shill appears without changing the historical calculation API.
-        Ok("base")
+    async fn token_side(&self, network: &str, pair: &str, address: &str) -> Result<&'static str> {
+        let url = format!("{GECKO}/networks/{network}/pools/{pair}");
+        let pool = self.http.get(url).send().await?.error_for_status()?.json::<GeckoPoolResponse>().await?;
+        let tracked = address.to_ascii_lowercase();
+        let base = pool.data.relationships.base_token.data.id.to_ascii_lowercase();
+        let quote = pool.data.relationships.quote_token.data.id.to_ascii_lowercase();
+        if base.ends_with(&tracked) { Ok("base") }
+        else if quote.ends_with(&tracked) { Ok("quote") }
+        else { bail!("tracked token is not part of the selected Gecko pool") }
     }
 }
 

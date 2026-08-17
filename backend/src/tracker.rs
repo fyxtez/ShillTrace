@@ -40,6 +40,11 @@ async fn poll_once(pool: &PgPool, market: &MarketClient, events: &broadcast::Sen
                     .bind(period_id).bind(snapshot.current_market_cap).execute(&mut *tx).await?;
                 sqlx::query("UPDATE shills SET max_market_cap=GREATEST(COALESCE(max_market_cap,0),$2) WHERE tracking_period_id=$1")
                     .bind(period_id).bind(snapshot.current_market_cap).execute(&mut *tx).await?;
+                // Repair only extremely impossible recent initial values left by
+                // the former base-only Gecko lookup. The tight time window and
+                // 100x threshold avoid rewriting legitimate historical calls.
+                sqlx::query("UPDATE shills SET initial_market_cap=$2 WHERE tracking_period_id=$1 AND shilled_at>=NOW()-INTERVAL '30 minutes' AND initial_market_cap IS NOT NULL AND (initial_market_cap>$2*100 OR initial_market_cap<$2/100)")
+                    .bind(period_id).bind(snapshot.current_market_cap).execute(&mut *tx).await?;
                 // The first successful live sample is the best recoverable
                 // Initial MC when a chain has no historical candle provider.
                 // This guarantees every actively resolved shill receives an
