@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{font-family:Inter,system-ui,sans-serif;color:#F3F3F1;background:#0A0A0A;font-synthesis:none;--accent:#F5A623;--accent-light:#FFC150;--text:#F3F3F1;--secondary:#A0A09A;--muted:#6F6F6A;--bg:#0A0A0A;--surface:#101010;--success:#4ADE80;--danger:#ef4444;--border:#292929}*{box-sizing:border-box}body{margin:0;min-width:1180px;min-height:100vh;background:linear-gradient(145deg,#171717 0,#080808 42%,#050505 100%)}button,input,select{font:inherit}button,a{color:inherit}.app{min-height:100vh;display:grid;grid-template-columns:198px 1fr}.sidebar{position:sticky;top:0;height:100vh;padding:18px 12px;border-right:1px solid var(--border);background:rgba(5,5,5,.94);display:flex;flex-direction:column}.brand{height:50px;display:flex;align-items:center;gap:12px;font-size:17px;font-weight:700;padding:0 4px 18px}.brand i{width:32px;height:32px;display:grid;place-items:center;border:1px solid #333;border-radius:5px;color:var(--accent)}.brand svg{width:18px}.sidebar nav{display:grid;gap:7px;margin-top:22px}.sidebar nav button{height:46px;padding:0 12px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--secondary);display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer}.sidebar nav button svg{width:18px}.sidebar nav button span{flex:1}.sidebar nav button b{background:var(--accent);color:#111;padding:3px 7px;border-radius:6px}.sidebar nav button:hover,.sidebar nav button.active{color:var(--text);background:#171717;border-color:#292929}.sidebar nav button.active{border-left:3px solid var(--accent)}.connection{margin-top:auto;padding:13px;border:1px solid var(--border);border-radius:6px;background:var(--surface);display:grid;gap:8px}.connection strong{font-size:12px;color:var(--success)}.connection strong i{display:inline-block;width:8px;height:8px;background:var(--success);border-radius:50%;margin-right:7px}.connection small{font-size:10px;color:var(--muted)}.page{min-width:0;padding:18px 20px 28px}.title{min-height:55px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:12px}.title h1{font-size:22px;margin:0 0 5px}.title p{font-size:12px;color:var(--secondary);margin:0}.filters{display:flex;gap:10px;align-items:center}.search{width:305px;height:37px;display:flex;align-items:center;gap:8px;padding:0 11px;border:1px solid var(--border);background:#0d0d0d;border-radius:5px}.search svg{width:15px;color:var(--muted)}.search input{width:100%;border:0;outline:0;background:transparent;color:var(--text);font-size:12px}.chains{height:37px;display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}.chains button{padding:0 12px;border:0;border-right:1px solid var(--border);background:#0e0e0e;color:var(--secondary);font-size:11px;cursor:pointer}.chains button:last-child{border:0}.chains button.active{background:#252018;color:var(--accent-light)}.channel-select{height:37px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:5px;padding:0 8px;color:var(--secondary);font-size:11px}.channel-select select{appearance:none;min-width:105px;border:0;outline:0;background:transparent;color:var(--text);font-size:11px}.channel-select option{background:#111}.channel-select svg{width:14px}.inbox-layout{display:grid;grid-template-columns:380px minmax(650px,1fr);gap:12px;height:calc(100vh - 105px)}.review{min-height:0;border-right:1px solid var(--border);padding-right:12px}.review h2{font-size:14px;margin:0 0 10px;display:flex;gap:7px}.review h2 b{font-size:11px;padding:2px 6px;border-radius:4px;background:#242424;color:var(--secondary)}.inbox-list{height:calc(100% - 25px);overflow:auto;padding-right:3px}.inbox-card{margin-bottom:9px;padding:13px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer}.inbox-card.selected{border-color:#7a5519;box-shadow:inset 2px 0 var(--accent)}.inbox-card>header{display:flex;align-items:center;gap:10px}.inbox-card>header div{display:flex;flex:1;justify-content:space-between;font-size:12px}.inbox-card header small,.inbox-card p,.inbox-card footer small{color:var(--secondary)}.inbox-card p{height:34px;overflow:hidden;font-size:11px;line-height:1.55;margin:9px 0;border-bottom:1px solid #232323;padding-bottom:9px}.inbox-card>footer{display:grid;grid-template-columns:1fr auto 62px;align-items:end;gap:10px}.inbox-token{display:flex;gap:7px;align-items:center}.inbox-token span{display:grid;font-size:11px}.inbox-token small{text-transform:capitalize;font-size:9px}.inbox-card dl{display:flex;gap:14px;margin:0}.inbox-card dl div{display:grid;gap:4px}.inbox-card dt{font-size:9px;color:var(--muted)}.inbox-card dd{font-size:11px;margin:0}.seen{height:32px;border:1px solid #956713;border-radius:4px;background:transparent;color:var(--accent-light);font-size:11px;display:flex;gap:5px;align-items:center;justify-content:center;cursor:pointer}.seen:hover{background:var(--accent);color:#111}.seen svg{width:13px}.avatar{display:inline-grid;place-items:center;flex:none;border-radius:50%;object-fit:cover;background:#222;border:1px solid #393939}.fallback{background:#252018;color:var(--accent-light);font-size:11px}.channel-avatar{background:#302259;color:#ddd;font-size:10px}.workspace{min-width:0;overflow:auto;display:grid;grid-template-rows:auto minmax(520px,1fr);gap:10px}.table-box{position:relative;overflow:auto;border:1px solid var(--border);border-radius:5px;background:#0d0d0d}.table-box table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:10px}.table-box th{text-align:left;height:36px;padding:0 11px;color:var(--secondary);font-weight:500;border-bottom:1px solid var(--border)}.table-box td{height:44px;padding:0 11px;color:#c5c5c2;border-bottom:1px solid #202020}.table-box tbody tr{cursor:pointer}.table-box tbody tr:hover,.table-box tr.selected-row{background:#171717}.token-cell,.channel-cell{display:flex;align-items:center;gap:8px}.token-cell b{color:var(--text)}.copy,.icon{padding:0;border:0;background:transparent;color:var(--muted);cursor:pointer}.copy svg{width:12px}.icon svg{width:17px}.gain{color:var(--success)!important}.loss{color:var(--danger)!important}.status{padding:3px 7px;border:1px solid #353535;border-radius:4px;color:var(--secondary)}.status.new{border-color:#85601d;color:var(--accent-light)}.detail{position:relative;border:1px solid #60471c;border-radius:6px;background:#0c0c0c;min-height:0}.detail-hero{height:102px;display:flex;align-items:center;gap:14px;padding:18px;border-bottom:1px solid var(--border)}.detail-hero h2{font-size:22px;margin:0 0 5px}.detail-hero span{font-size:11px;color:#69a5ff;text-transform:capitalize}.big-x{margin-left:auto;display:grid;text-align:right}.big-x b{font-size:26px}.big-x small{font-size:10px;color:var(--secondary)}.metrics{position:absolute;left:250px;right:18px;top:18px;display:grid;grid-template-columns:repeat(4,1fr)}.metric{min-width:130px;padding:8px 18px;border-left:1px solid var(--border);display:grid;gap:7px}.metric small{color:var(--secondary);font-size:10px}.metric b{font-size:17px}.detail-content{display:grid;grid-template-columns:290px 1fr;gap:14px;padding:14px 18px 68px}.meta{display:grid;grid-template-columns:1fr 1fr;margin-bottom:12px}.meta>span{display:grid;gap:7px}.meta small,.message>small{font-size:9px;color:var(--muted)}.meta b{display:flex;align-items:center;gap:6px;font-size:10px}.message{padding:12px;border:1px solid var(--border);background:var(--surface);border-radius:5px;min-height:150px}.message>b{margin-top:12px;display:flex;align-items:center;gap:8px;font-size:11px}.message p{font-size:11px;color:#d0d0cd;line-height:1.6}.chart{min-height:190px;border-left:1px solid var(--border);padding-left:14px}.chart header{display:flex;justify-content:space-between;font-size:11px}.chart header small{color:var(--muted)}.chart svg{width:100%;height:190px;margin-top:8px;overflow:visible}.chart .chart-grid{stroke:#292929;stroke-width:.35;stroke-dasharray:0}.chart .chart-axis{stroke:#4a4a46;stroke-width:.5;stroke-dasharray:0}.chart polyline{fill:none;stroke:var(--success);stroke-width:1.8;vector-effect:non-scaling-stroke}.chart .chart-point{fill:var(--success);stroke:#0c0c0c;stroke-width:.45;opacity:.15;cursor:crosshair}.chart .chart-point:hover{fill:var(--accent-light);opacity:1;stroke:var(--accent);r:1.8px}.chart .axis-label{fill:var(--secondary);font-size:3.2px;font-weight:600}.chart .axis-y{text-anchor:end}.chart .axis-x{fill:var(--muted)}.no-chart{height:180px;display:grid;place-items:center;color:var(--muted);font-size:11px}.detail-actions{position:absolute;left:18px;right:18px;bottom:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.detail-actions a,.detail-actions button{height:39px;border:1px solid var(--border);background:#111;border-radius:4px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;cursor:pointer}.detail-actions svg{width:13px}.detail-actions .remove{color:var(--danger);border-color:#7a2e2e}.close{position:absolute;right:12px;top:12px;border:0;background:transparent;color:var(--secondary);cursor:pointer;z-index:2}.close svg{width:18px}.warning{margin:12px 18px 0;padding:10px 12px;border:1px solid #70511b;background:#1d170c;display:flex;justify-content:space-between;align-items:center}.warning div{display:grid;gap:3px}.warning b{font-size:11px;color:var(--accent-light)}.warning span{font-size:9px;color:var(--secondary)}.warning button{height:29px;border:1px solid #70511b;background:transparent;color:var(--accent-light);display:flex;align-items:center;gap:5px;font-size:10px}.warning svg{width:12px}.confirm{position:absolute;right:18px;bottom:62px;width:280px;padding:13px;border:1px solid #633;background:#141010;box-shadow:0 12px 30px #000;display:grid;gap:8px;z-index:3}.confirm b{font-size:12px}.confirm span{font-size:10px;color:var(--secondary);line-height:1.4}.confirm div{display:flex;justify-content:flex-end;gap:7px}.confirm button{height:30px;padding:0 13px;border:1px solid var(--border);background:#181818}.confirm .danger{background:#8e2222;border-color:#b43535}.all-layout{position:relative}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}.summary .metric,.settings-card{border:1px solid var(--border);background:var(--surface);border-radius:5px}.all-layout>.table-box{height:calc(100vh - 175px)}.drawer{position:fixed;right:20px;top:82px;bottom:20px;width:min(760px,52vw);z-index:5;box-shadow:-20px 0 50px #000}.drawer .detail{height:100%}.drawer .metrics{top:100px;left:0;right:0}.drawer .detail-content{margin-top:102px;grid-template-columns:260px 1fr}.empty{height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:var(--muted)}.empty svg{width:25px}.empty b{color:var(--secondary)}.loading{height:60vh;display:grid;place-items:center;color:var(--secondary)}.channel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}.channel-grid article{padding:14px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:12px}.channel-grid article div{display:grid;gap:5px;flex:1}.channel-grid small{color:var(--secondary);font-size:10px}.channel-grid button{height:34px;border:1px solid #75551d;background:transparent;color:var(--accent-light);font-size:10px}.settings-card{max-width:620px;padding:22px;display:grid;grid-template-columns:180px 1fr;gap:18px;font-size:12px}.settings-card span{color:var(--secondary)}
+@media(max-width:1400px){.app{grid-template-columns:176px 1fr}.inbox-layout{grid-template-columns:335px 1fr}.filters{flex-wrap:wrap;justify-content:flex-end}.search{width:250px}.detail-content{grid-template-columns:250px 1fr}.metrics{left:225px}.table-box th,.table-box td{padding:0 8px}}
+
+/* Manrope gives the dense dashboard a clearer hierarchy and more distinctive
+   numerals while retaining excellent readability at small data-table sizes. */
+body,button,input,select{font-family:Manrope,Inter,system-ui,sans-serif}
+
+/* The grid transition and collapsed rules make the formerly inert hamburger
+   a useful density control without hiding access to any navigation item. */
+.app{grid-template-columns:218px minmax(0,1fr);transition:grid-template-columns .24s ease}
+.app.sidebar-collapsed{grid-template-columns:76px minmax(0,1fr)}
+.sidebar{transition:padding .24s ease}
+.brand{font-weight:800;white-space:nowrap;overflow:hidden}
+.brand button{width:34px;height:34px;flex:none;display:grid;place-items:center;border:1px solid #333;border-radius:7px;background:#101010;color:var(--accent);cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.brand button:hover{background:#211a0d;border-color:#8a611b;transform:translateY(-1px)}
+.brand button svg{width:18px}
+.sidebar.collapsed{padding-inline:10px}
+.sidebar.collapsed .brand{padding-left:1px}
+.sidebar.collapsed .brand span,.sidebar.collapsed nav button span,.sidebar.collapsed .connection span,.sidebar.collapsed .connection small{display:none}
+.sidebar.collapsed nav button{justify-content:center;padding:0}
+.sidebar.collapsed nav button b{position:absolute;margin:0 0 30px 28px;font-size:9px;padding:1px 5px}
+.sidebar.collapsed .connection{padding:12px;place-items:center}
+.sidebar.collapsed .connection strong i{margin:0}
+
+/* Buttons share deliberate motion and feedback so every action feels
+   interactive instead of looking like a static bordered label. */
+button{transition:color .18s ease,background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.sidebar nav button:hover{transform:translateX(2px)}
+.sidebar.collapsed nav button:hover{transform:translateY(-1px)}
+.channel-grid button:hover,.seen:hover,.detail-actions a:hover,.detail-actions button:hover,.warning button:hover{background:var(--accent);border-color:var(--accent-light);color:#111;box-shadow:0 6px 20px rgba(245,166,35,.16);transform:translateY(-1px)}
+.channel-grid button:active,.seen:active,.detail-actions button:active{transform:translateY(0) scale(.98)}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.35)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
+.connection strong i{animation:livePulse 2s ease-in-out infinite}
+
+/* Channel pages deliberately cap at three columns, increase typography and
+   spacing, and expose a dedicated search without making the cards oversized. */
+.channels-page{padding:28px 32px 36px}
+.channel-title{align-items:center;margin-bottom:12px}
+.channel-title h1{font-size:28px;letter-spacing:-.03em}
+.channel-title p{font-size:13px;margin-top:7px}
+.channel-search{width:min(420px,34vw);height:44px;border-radius:8px;transition:border-color .18s ease,box-shadow .18s ease}
+.channel-search:focus-within{border-color:#8a611b;box-shadow:0 0 0 3px rgba(245,166,35,.1)}
+.channel-search input{font-size:13px}
+.channel-search>button{width:26px;height:26px;padding:0;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.channel-search>button:hover{color:var(--text)}
+.channel-search>button svg{width:15px}
+.channel-count{margin:0 0 14px;color:var(--muted);font-size:12px}
+.channel-count b{color:var(--accent-light)}
+.channel-grid{grid-template-columns:repeat(3,minmax(300px,1fr));gap:12px}
+.channel-grid article{min-height:84px;padding:15px 16px;border-radius:9px;gap:14px;transition:border-color .18s ease,background .18s ease,transform .18s ease,box-shadow .18s ease}
+.channel-grid article:hover{background:#141414;border-color:#3b352b;transform:translateY(-1px);box-shadow:0 9px 24px rgba(0,0,0,.25)}
+.channel-grid article>div>b{font-size:14px;line-height:1.3}
+.channel-grid small{font-size:11px;line-height:1.4}
+.channel-grid button{height:38px;padding:0 13px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.channel-empty{grid-column:1/-1;margin-top:80px}
+@media(max-width:1450px){.channel-grid{grid-template-columns:repeat(2,minmax(320px,1fr))}}
+
+/* The second readability pass raises the global information density without
+   scaling the entire browser canvas or breaking the table layout. */
+body{font-size:15px}
+.page>.title h1{font-size:28px}
+.page>.title p{font-size:13px}
+.sidebar nav button{font-size:14px}
+.review h2{font-size:16px}
+.inbox-card{padding:16px}
+.inbox-card>header div,.inbox-card p{font-size:13px}
+.inbox-card p{height:auto;min-height:38px;overflow-wrap:anywhere}
+.inbox-card dt{font-size:10px}.inbox-card dd{font-size:13px}.seen{font-size:12px}
+.table-box table{font-size:12px}.table-box th{font-size:11px}.table-box td{height:50px}
+.detail-hero h2{font-size:27px}.metric small{font-size:11px}.metric b{font-size:19px}
+.meta small,.message>small{font-size:10px}.meta b,.message>b,.message p{font-size:12px}
+.detail-actions a,.detail-actions button{font-size:12px}
+
+/* Contract addresses can be longer than an EVM address, so both raw message
+   text and the metadata value may wrap inside their own columns. */
+.contract-value{min-width:0;max-width:100%;align-items:flex-start!important}
+.contract-value>span{min-width:0;overflow-wrap:anywhere;word-break:break-word;line-height:1.45}
+.message{min-width:0;overflow:hidden}.message p{overflow-wrap:anywhere;word-break:break-word}
+
+/* Recognizable local chain marks add visual scanning cues without external
+   image requests or a dependency on wallet extensions. */
+.chain-label{display:inline-flex!important;align-items:center;gap:7px;color:#9ebfff!important;text-transform:capitalize}
+.chain-icon{width:23px;height:23px;display:inline-grid;place-items:center;flex:none;border-radius:50%;font-size:7px;font-weight:800;letter-spacing:-.04em;color:white;border:1px solid rgba(255,255,255,.18);background:#333}
+.chain-ethereum{background:linear-gradient(145deg,#627eea,#302d78)}
+.chain-solana{background:linear-gradient(145deg,#14f195,#9945ff);color:#090909}
+.chain-base{background:#0052ff}
+.chain-bsc{background:#f3ba2f;color:#171717}
+.chain-robinhood{background:linear-gradient(145deg,#00c805,#087d2b)}
+.inbox-token small .chain-label{font-size:10px}.inbox-token small .chain-icon{width:17px;height:17px;font-size:5px}
+
+/* A channel column owns its complete chronological shill stack. This turns the
+   page into useful channel history instead of a flat list of aggregate cards. */
+.channel-columns{align-items:start}
+.channel-grid .channel-column{display:block;padding:0;overflow:hidden;background:#0d0d0d}
+.channel-column>header{min-height:88px;padding:15px 16px;display:flex;align-items:center;gap:13px;border-bottom:1px solid var(--border)}
+.channel-column>header>div{display:grid;gap:5px;flex:1;min-width:0}
+.channel-column>header>div>b{font-size:15px}
+.channel-column>header>div>small{font-size:11px;color:var(--secondary)}
+.channel-column>header>button{height:38px;padding:0 13px;border:1px solid #75551d;background:transparent;color:var(--accent-light);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
+.channel-shills{display:grid}
+.channel-shill{min-height:74px;padding:12px 16px;display:grid;grid-template-columns:40px minmax(90px,1fr) auto;align-items:center;gap:11px;border-bottom:1px solid #202020;transition:background .18s ease}
+.channel-shill:hover{background:#151515}
+.channel-shill>div{display:grid;gap:5px;min-width:0}.channel-shill>div>b{font-size:13px;overflow:hidden;text-overflow:ellipsis}.channel-shill>div>small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:10px}.channel-shill .chain-icon{width:17px;height:17px;font-size:5px}
+.channel-shill dl{margin:0;display:flex;gap:18px}.channel-shill dl span{display:grid;gap:3px}.channel-shill dt{font-size:9px;color:var(--muted)}.channel-shill dd{margin:0;font-size:11px;color:var(--text)}
+.no-channel-shills{padding:22px;text-align:center;color:var(--muted);font-size:12px}
+
+/* The history header now explains the sampling model and labels both ends of
+   the trend, while the misleading vertical dotted marker has been removed. */
+.chart header{align-items:flex-start;gap:15px}.chart header>div:first-child{display:grid;gap:4px}.chart header b{font-size:13px}.chart header small{font-size:10px}
+.chart-legend{display:flex;gap:14px;color:var(--secondary);font-size:10px}.chart-legend span{display:flex;align-items:center;gap:5px}.chart-legend i{width:8px;height:8px;border-radius:50%;background:var(--success)}.chart-legend i.start{background:var(--accent)}
+.chart svg{background:linear-gradient(to bottom,rgba(255,255,255,.025),transparent);border-bottom:1px solid #252525}
+
+/* CoinGecko native-asset artwork (plus official Base/Robinhood fallbacks) is
+   rendered as imagery rather than synthetic letter badges. */
+img.chain-icon{width:24px;height:24px;padding:1px;object-fit:contain;background:#171717;border:1px solid #353535;border-radius:50%}
+.chain-unknown{background:#292929}
+.token-identity{display:grid;gap:3px}.token-identity .chain-label{font-size:9px}.token-identity .chain-icon{width:16px;height:16px}
+
+/* A stronger divider separates token identity from source-channel identity,
+   making wide tables considerably easier to scan. */
+.table-box th:nth-child(2),.table-box td:nth-child(2){border-left:1px solid #3a3328;padding-left:18px}
+.table-box th:first-child,.table-box td:first-child{padding-right:18px}
+
+/* Actions now open above the table instead of showing an inert ellipsis. */
+.actions-menu{position:relative;display:inline-flex}.actions-menu>.icon{width:32px;height:32px;display:grid;place-items:center;border-radius:6px}.actions-menu>.icon:hover{background:#292116;color:var(--accent-light)}
+.actions-popover{position:absolute;right:0;top:36px;width:175px;padding:6px;display:grid;gap:3px;border:1px solid #46371f;border-radius:8px;background:#111;box-shadow:0 16px 38px rgba(0,0,0,.65);z-index:20}
+.actions-popover button,.actions-popover a{min-height:34px;padding:0 9px;border:0;border-radius:5px;background:transparent;text-decoration:none;color:var(--secondary);font-size:11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left}
+.actions-popover button:hover,.actions-popover a:hover{background:#241d12;color:var(--accent-light)}.actions-popover svg{width:13px}
+
+/* The detail panel sizes itself to content on regular pages. Drawer details
+   remain scrollable, removing the large unused black area and warning overlap. */
+.inbox-layout{height:auto;min-height:calc(100vh - 120px)}
+.workspace{display:grid;grid-template-rows:auto auto;align-content:start;overflow:visible}
+.detail{min-height:0}
+.metrics{position:static;margin:0;display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)}
+.detail-content{padding:18px;grid-template-columns:310px minmax(0,1fr)}
+.detail-actions{position:static;margin:0 18px 18px}
+.drawer .detail{height:100%;overflow:auto}.drawer .metrics{position:static}.drawer .detail-content{margin-top:0}.drawer .detail-actions{position:sticky;bottom:0;padding:12px 0;margin-bottom:0;background:#0c0c0c;z-index:4}
+.warning{position:static;margin:12px 18px 0;min-height:58px;gap:15px}.warning div{min-width:0}.warning span{font-size:11px;line-height:1.45}.warning button{flex:none;cursor:pointer}
+
+/* One final font increase targets labels and secondary data that remained too
+   small on the user's ultrawide display. */
+.page{font-size:16px}.title h1{font-size:31px}.title p{font-size:14px}
+.inbox-card>header div{font-size:14px}.inbox-card p{font-size:14px}.inbox-card dd{font-size:14px}.inbox-card dt{font-size:11px}
+.table-box table{font-size:13px}.table-box th{font-size:12px}.table-box td{height:56px}
+.channel-column>header>div>b{font-size:16px}.channel-column>header>div>small{font-size:12px}.channel-shill>div>b{font-size:14px}.channel-shill dd{font-size:12px}
+.detail-hero h2{font-size:30px}.metric small{font-size:12px}.metric b{font-size:21px}.meta small,.message>small{font-size:11px}.meta b,.message>b,.message p{font-size:13px}
+.chart{min-height:210px}.chart svg{height:165px}.chart header b{font-size:14px}.chart header small,.chart-legend{font-size:11px}
+
+/* The chart now uses a wide 1000×260 coordinate system that matches its visual
+   shape, preventing SVG axis text from stretching across ultrawide layouts. */
+.chart .market-chart{display:block;width:100%;height:auto;aspect-ratio:1000/260;overflow:visible}
+.chart .axis-label{font-size:12px;font-weight:600}.chart .chart-grid{stroke-width:1}.chart .chart-axis{stroke-width:1.25}
+.chart .chart-point{stroke-width:1.5;opacity:.12}.chart .chart-point:hover{opacity:1;r:6px}
+
+/* Copy feedback is anchored beside the symbol and fades in without moving
+   table columns, which keeps fast scanning stable. */
+.symbol-line{display:flex;align-items:center;gap:7px}.copy-wrap{position:relative;display:inline-grid;place-items:center}.copy{width:25px;height:25px;display:grid;place-items:center;border-radius:5px;transition:color .16s ease,background .16s ease}.copy:hover{color:var(--accent-light);background:#292217}.copy-feedback{position:absolute;left:50%;top:31px;translate:-50% -4px;padding:5px 8px;border:1px solid #72511c;border-radius:5px;background:#18130b;color:var(--accent-light);font-size:10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .16s ease,translate .16s ease;z-index:20}.copy-feedback.visible{opacity:1;translate:-50% 0}
+
+/* Official project links fill the token row's free space. Unavailable links
+   remain softly blurred and ignore pointer events entirely. */
+.token-cell{min-width:320px}.token-identity{display:grid;gap:3px}.token-socials{display:flex;align-items:center;gap:6px;margin-left:auto;padding-left:12px}.token-socials>a,.token-socials>.social-disabled{width:28px;height:28px;display:grid;place-items:center;border:1px solid #303030;border-radius:6px;background:#141414;color:var(--secondary);transition:color .16s ease,border-color .16s ease,background .16s ease,transform .16s ease}.token-socials svg{width:14px;height:14px}.token-socials>a:hover{color:var(--accent-light);border-color:#7a5519;background:#201a10;transform:translateY(-1px)}.token-socials>.social-disabled{opacity:.23;filter:blur(.45px);pointer-events:none}.detail-hero>.token-socials{margin-left:auto}.detail-hero>.token-socials+.big-x{margin-left:12px}
+
+/* Day rows split the chronological archive into human-readable sections while
+   retaining the existing newest-first order within every group. */
+.day-divider{cursor:default!important;background:#0a0a0a!important}.day-divider td{height:42px!important;padding:0 12px!important;border-bottom:1px solid #4a3718!important}.day-divider span{display:flex;align-items:center;gap:10px;color:var(--accent-light);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.day-divider span:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,#6d4c16,transparent)}
+
+/* The detail drawer uses a click-away backdrop and Escape handling, so a
+   second top-right close icon is unnecessary. */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:5}.drawer-backdrop .drawer{z-index:6}
+.x-social-mark{font-size:14px;font-weight:800;line-height:1}
+
+/* Every scrollable surface shares the same dark track and gold thumb so native
+   browser scrollbars no longer clash with the ShillTrace palette. */
+*{scrollbar-width:thin;scrollbar-color:#79551b #0d0d0d}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:#0d0d0d;border-radius:10px}
+*::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#9a6b1e,#5d4218);border:2px solid #0d0d0d;border-radius:10px}
+*::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,var(--accent),#8a601d)}
+*::-webkit-scrollbar-corner{background:#0d0d0d}
+
+/* Contact shortcuts sit directly above live status and disappear in compact
+   sidebar mode, keeping the 76px layout uncluttered. */
+.sidebar-bottom{margin-top:auto;display:grid;gap:10px}.sidebar-bottom .connection{margin-top:0}.contact-card{border:1px solid var(--border);border-radius:7px;background:#0d0d0d;overflow:hidden}.contact-card a{min-height:54px;padding:9px 10px;display:grid;grid-template-columns:24px 1fr 12px;align-items:center;gap:8px;text-decoration:none;color:var(--text);border-bottom:1px solid #222;transition:background .16s ease,border-color .16s ease}.contact-card a:last-child{border-bottom:0}.contact-card a:hover{background:#17130c}.contact-card>a>svg:first-child{width:17px;color:var(--accent)}.contact-card>a>svg:last-child{width:10px;color:var(--muted)}.contact-card span{display:grid;gap:2px;font-size:11px;white-space:nowrap}.contact-card small{font-size:9px;color:var(--muted);letter-spacing:.05em}.sidebar.collapsed .contact-card{display:none}
+
+/* All Tokens opens details as a centered workspace modal rather than a narrow
+   right-side drawer, giving the chart and metadata balanced room. */
+.drawer-backdrop{left:198px;display:grid;place-items:center;padding:28px}.app.sidebar-collapsed .drawer-backdrop{left:76px}.drawer-backdrop .drawer{position:relative;inset:auto;width:min(1180px,100%);height:min(780px,calc(100vh - 56px));box-shadow:0 24px 80px #000}.drawer .detail-content{grid-template-columns:300px minmax(0,1fr)}
+
+/* Header social controls use the same neutral icon color; the global detail
+   span rule previously made the X glyph blue. */
+.detail-hero .token-socials>a{color:var(--secondary)!important}.detail-hero .token-socials>a:hover{color:var(--accent-light)!important}.detail-hero .x-social-mark{color:inherit!important;text-transform:none}
+
+/* Channel sections separate personal pins from the remaining monitored list
+   without duplicating cards. */
+.channel-section{margin-top:18px}.channel-section>h2{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:16px}.channel-section>h2 b{padding:2px 7px;border-radius:5px;background:#242018;color:var(--accent-light);font-size:11px}.channel-section-empty{min-height:72px;display:grid;place-items:center;border:1px dashed #302a20;border-radius:7px;color:var(--muted);font-size:12px}.channel-actions{display:flex;align-items:center;gap:7px}.channel-actions button{display:flex;align-items:center;justify-content:center;gap:6px}.channel-actions svg{width:13px}.channel-actions .pin-channel{border-color:#3c3529;color:var(--secondary)}.channel-actions .pin-channel:hover,.channel-actions .pin-channel.active{border-color:#8a601d;color:var(--accent-light);background:#20190d}.channel-column .last-shill{color:#8f8f89;font-size:11px}
+
+/* The synthetic Initial MC point is gold, making the chart's exact starting
+   baseline visibly different from later green tracker samples. */
+.chart .chart-point.initial-point{fill:var(--accent);stroke:var(--accent-light);opacity:1}

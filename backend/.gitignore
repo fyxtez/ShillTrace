@@ -1,0 +1,6 @@
+*.session-wal
+.env
+.env.deploy
+/target
+photos
+/storage

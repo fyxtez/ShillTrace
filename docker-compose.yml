@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: signal_ledger
+      POSTGRES_PASSWORD: signal_ledger
+      POSTGRES_DB: signal_ledger
+    ports:
+      # Use port 5433 because the local PostgreSQL already uses 5432.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - signal-ledger-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signal_ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  signal-ledger-postgres:

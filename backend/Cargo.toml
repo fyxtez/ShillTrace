@@ -1,0 +1,40 @@
+[package]
+# Rename only the compiled application identity; database and folder names stay
+# unchanged so existing local data and deployment commands keep working.
+name = "shilltrace-backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+async-stream = "0.3"
+axum = { version = "0.8", features = ["macros"] }
+bs58 = "0.5"
+futures-core = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+dotenvy = "0.15"
+grammers-client = { git = "https://codeberg.org/Lonami/grammers.git", features = ["fs"] }
+grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers.git" }
+grammers-session = { git = "https://codeberg.org/Lonami/grammers.git" }
+once_cell = "1"
+regex = "1"
+reqwest = { version = "0.13", features = ["json","query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "macros", "migrate"] }
+thiserror = "2"
+telegram-notify = "1.0.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+strip = true        # Remove symbols from binary
+opt-level = 3       
+lto = true          # Optimize at link stage ("fat")
+codegen-units = 1   # Reduce parallel codegen to maximize optimizations
+panic = "abort"     # Remove unwind information, reducing binary size and overhead (no backtraces in production)
+debug = false
+incremental = false

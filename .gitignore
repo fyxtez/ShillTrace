@@ -1,0 +1,8 @@
+.env
+*.session
+*.session-shm
+*.session-wal
+
+zip.sh
+
+*.zip
