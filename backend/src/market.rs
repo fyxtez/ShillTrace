@@ -304,6 +304,9 @@ fn gecko_network(chain: &str) -> Result<&'static str> {
         "optimism" => Ok("optimism"),
         "avalanche" => Ok("avax"),
         "solana" => Ok("solana"),
+        // GeckoTerminal identifies the TRON network as `tron`; mapping it here
+        // enables timestamp-aligned initial market caps for TRX/TRC-20 shills.
+        "tron" => Ok("tron"),
         other => bail!("historical mapping missing for {other}"),
     }
 }

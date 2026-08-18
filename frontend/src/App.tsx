@@ -23,7 +23,7 @@ function CopyActionButton({value}:{value:string}){const [copied,setCopied]=useSt
 
 // Small inline marks keep chain identity recognizable without relying on a
 // third-party image host that could break the dashboard later.
-function ChainIcon({chain}:{chain:string|null}){const id=(chain??'unknown').toLowerCase();const icons:Record<string,string>={ethereum:'/chain-icons/ethereum.png',solana:'/chain-icons/solana.png',bsc:'/chain-icons/bsc.png',base:'/chain-icons/base.png',robinhood:'/chain-icons/robinhood.svg'};const src=icons[id];return src?<img className="chain-icon" src={src} alt={`${chain} network`}/>:<span className="chain-icon chain-unknown">?</span>}
+function ChainIcon({chain}:{chain:string|null}){const id=(chain??'unknown').toLowerCase();const icons:Record<string,string>={ethereum:'/chain-icons/ethereum.png',solana:'/chain-icons/solana.png',bsc:'/chain-icons/bsc.png',base:'/chain-icons/base.png',robinhood:'/chain-icons/robinhood.svg',tron:'/chain-icons/tron.svg'};const src=icons[id];return src?<img className="chain-icon" src={src} alt={`${chain} network`}/>:<span className="chain-icon chain-unknown">?</span>}
 function ChainLabel({chain}:{chain:string|null}){return <span className="chain-label"><ChainIcon chain={chain}/><span>{chain??'Unknown chain'}</span></span>}
 
 function TokenSocials({shill}:{shill:Shill}){
@@ -160,6 +160,10 @@ export default function App(){
  // dimmed area closes it, removing the need for another crowded top-right X.
  useEffect(()=>{const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelected(null)};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[])
  const filtered=useMemo(()=>shills.filter(s=>`${s.symbol} ${s.token_name} ${s.contract_address} ${s.channel_name}`.toLowerCase().includes(search.toLowerCase())),[shills,search]);const unseen=shills.filter(s=>!s.seen_at).length
+ // Mirror the existing unseen badge in the browser tab so missed audio alerts
+ // remain visible while the user is working in another tab. Seen actions and
+ // live refreshes update the count automatically through React state.
+ useEffect(()=>{document.title=unseen>0?`(${unseen}) ShillTrace`:'ShillTrace';return()=>{document.title='ShillTrace'}},[unseen])
  const act=async(fn:()=>Promise<unknown>)=>{await fn();await refresh()}
  // Navigating clears the previous selection so All Tokens does not open a
  // drawer until the user explicitly chooses a row.
