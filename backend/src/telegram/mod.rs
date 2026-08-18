@@ -7,7 +7,16 @@ use grammers_client::update::Update;
 use grammers_mtsender::UpdatesConfiguration;
 use serde_json::json;
 use sqlx::PgPool;
-use tokio::sync::broadcast;
+use std::sync::Arc;
+use tokio::sync::{Semaphore, broadcast};
+
+struct PendingEnrichment {
+    token_id: i64,
+    period_id: i64,
+    shill_id: i64,
+    address: String,
+    sent_at: chrono::DateTime<chrono::Utc>,
+}
 
 pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>) -> Result<()> {
     tracing::info!("Starting Telegram client");
@@ -28,6 +37,9 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
         .map_err(|error| anyhow!(error.to_string()))?;
     tracing::info!("Telegram live update stream started");
     let market = MarketClient::new()?;
+    // Market enrichment is detached from Telegram intake, but a shared limit
+    // prevents a burst of shills from overwhelming DEX providers or the DB.
+    let enrichment_limit = Arc::new(Semaphore::new(4));
     let mut stream = updates;
 
     loop {
@@ -64,87 +76,71 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
             "INSERT INTO telegram_messages(telegram_message_id,channel_id,body,sent_at) VALUES($1,$2,$3,$4) ON CONFLICT(channel_id,telegram_message_id) DO UPDATE SET body=EXCLUDED.body RETURNING id"
         ).bind(telegram_message_id).bind(channel_id).bind(text).bind(sent_at).fetch_one(&pool).await?;
 
-        let mut ingested_any = false;
+        let mut pending_enrichments = Vec::new();
         for candidate in candidates {
-            // TODO:
-            // HOTPATH BOTTLENECK: ingest_candidate() below makes synchronous HTTP calls
-            // (market.resolve + historical_market_cap, up to 20s timeout each) while
-            // holding up this loop. The next Telegram update is not read from the
-            // stream until this completes, so a slow/rate-limited API call stalls
-            // ingestion for every channel, not just this one.
-            // TODO: tokio::spawn each ingest_candidate call (with a semaphore to cap
-            // concurrent outbound requests) so message intake never blocks on market
-            // data resolution.
-
-            // One malformed or temporarily unavailable token must not stop the
-            // entire Telegram update stream and hide every later shill.
-            match ingest_candidate(
-                &pool,
-                &market,
-                channel_id,
-                message_row_id,
-                sent_at,
-                &candidate.address,
-            )
-            .await
-            {
-                Ok(()) => ingested_any = true,
+            // Persist the minimum user-visible record before any external HTTP
+            // call so frontend notification latency depends only on Telegram
+            // delivery and PostgreSQL, not DEX/Gecko response time.
+            match ingest_candidate_fast(
+                &pool, channel_id, message_row_id, sent_at, &candidate.address,
+            ).await {
+                Ok(Some(pending)) => pending_enrichments.push(pending),
+                // A repeated call from the same channel only attaches its
+                // message; it is not a new shill and must not ring again.
+                Ok(None) => {}
                 Err(error) => {
                     tracing::error!(%error, address = candidate.address, channel_id, "Failed to ingest token candidate")
                 }
             }
         }
-        if ingested_any {
+        if !pending_enrichments.is_empty() {
+            // Every minimal shill is committed before this event, so the first
+            // frontend refresh can display it immediately with resolving data.
             let _ = events.send(json!({"type":"new_shill"}).to_string());
+
+            for pending in pending_enrichments {
+                let task_pool = pool.clone();
+                let task_market = market.clone();
+                let task_events = events.clone();
+                let task_limit = enrichment_limit.clone();
+                tokio::spawn(async move {
+                    let Ok(_permit) = task_limit.acquire_owned().await else {
+                        return;
+                    };
+                    if let Err(error) = enrich_candidate(
+                        &task_pool,
+                        &task_market,
+                        &task_events,
+                        &pending,
+                    ).await {
+                        tracing::error!(%error, address = %pending.address, shill_id = pending.shill_id, "Background shill enrichment failed");
+                    }
+                });
+            }
         }
     }
 }
 
-async fn ingest_candidate(
+async fn ingest_candidate_fast(
     pool: &PgPool,
-    market: &MarketClient,
     channel_id: i64,
     message_row_id: i64,
     sent_at: chrono::DateTime<chrono::Utc>,
     address: &str,
-) -> Result<()> {
-    let resolved = market.resolve(address).await;
+) -> Result<Option<PendingEnrichment>> {
     let existing: Option<(i64,)> = sqlx::query_as(
         "SELECT id FROM tokens WHERE LOWER(contract_address)=LOWER($1) ORDER BY (chain_id IS NULL), id LIMIT 1"
     ).bind(address).fetch_optional(pool).await?;
     let token_id = if let Some((id,)) = existing {
         id
     } else {
-        sqlx::query_scalar("INSERT INTO tokens(contract_address) VALUES($1) RETURNING id")
+        // `resolving` distinguishes a freshly visible shill from a genuine
+        // provider failure while its background market lookup is in flight.
+        sqlx::query_scalar("INSERT INTO tokens(contract_address,market_status) VALUES($1,'resolving') RETURNING id")
             .bind(address)
             .fetch_one(pool)
             .await?
     };
-
-    if let Ok(snapshot) = &resolved {
-        sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,market_status='tracking',last_market_at=NOW(),last_market_error=NULL,updated_at=NOW() WHERE id=$1")
-            .bind(token_id).bind(&snapshot.chain_id).bind(&snapshot.pair_address).bind(&snapshot.symbol)
-            .bind(&snapshot.name).bind(&snapshot.image_url).bind(snapshot.current_market_cap)
-            .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url).execute(pool).await?;
-    } else {
-        let detail = resolved.as_ref().unwrap_err().to_string();
-        sqlx::query("UPDATE tokens SET market_status='unavailable',last_market_error=$2,updated_at=NOW() WHERE id=$1")
-            .bind(token_id).bind(&detail).execute(pool).await?;
-        let category = if detail.contains("429") {
-            "dexscreener_rate_limit"
-        } else {
-            "dexscreener_ingestion_error"
-        };
-        // A failed first lookup prevents Initial MC creation, so notify the
-        // operator immediately instead of leaving only an unavailable badge.
-        notifications::important(
-            category,
-            &format!(
-                "ShillTrace\nNew shill market lookup failed\nContract: {address}\nError: {detail}"
-            ),
-        )
-        .await;
-    }
 
     let active_period: Option<(i64,)> =
         sqlx::query_as("SELECT id FROM tracking_periods WHERE token_id=$1 AND status='active'")
@@ -154,7 +150,7 @@ async fn ingest_candidate(
     let period_id = match active_period {
         Some((id,)) => id,
         None => sqlx::query_scalar("INSERT INTO tracking_periods(token_id,started_at,highest_market_cap) VALUES($1,$2,$3) RETURNING id")
-            .bind(token_id).bind(sent_at).bind(resolved.as_ref().ok().map(|v| v.current_market_cap)).fetch_one(pool).await?,
+            .bind(token_id).bind(sent_at).bind(Option::<f64>::None).fetch_one(pool).await?,
     };
 
     let existing_shill: Option<(i64,)> =
@@ -166,18 +162,73 @@ async fn ingest_candidate(
     if let Some((shill_id,)) = existing_shill {
         sqlx::query("INSERT INTO shill_messages(shill_id,telegram_message_id) VALUES($1,$2) ON CONFLICT DO NOTHING")
             .bind(shill_id).bind(message_row_id).execute(pool).await?;
+        return Ok(None);
+    }
+
+    // The placeholder is intentionally complete enough for list_shills: it
+    // contains source/message identity now, while market fields arrive later.
+    let shill_id: i64 = sqlx::query_scalar("INSERT INTO shills(tracking_period_id,token_id,channel_id,first_message_id,shilled_at,market_status) VALUES($1,$2,$3,$4,$5,'resolving') RETURNING id")
+        .bind(period_id).bind(token_id).bind(channel_id).bind(message_row_id).bind(sent_at).fetch_one(pool).await?;
+    sqlx::query("INSERT INTO shill_messages(shill_id,telegram_message_id) VALUES($1,$2)")
+        .bind(shill_id)
+        .bind(message_row_id)
+        .execute(pool)
+        .await?;
+    Ok(Some(PendingEnrichment {
+        token_id,
+        period_id,
+        shill_id,
+        address: address.to_owned(),
+        sent_at,
+    }))
+}
+
+async fn enrich_candidate(
+    pool: &PgPool,
+    market: &MarketClient,
+    events: &broadcast::Sender<String>,
+    pending: &PendingEnrichment,
+) -> Result<()> {
+    let resolved = market.resolve(&pending.address).await;
+    if let Ok(snapshot) = &resolved {
+        sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,market_status='tracking',last_market_at=NOW(),last_market_error=NULL,updated_at=NOW() WHERE id=$1")
+            .bind(pending.token_id).bind(&snapshot.chain_id).bind(&snapshot.pair_address).bind(&snapshot.symbol)
+            .bind(&snapshot.name).bind(&snapshot.image_url).bind(snapshot.current_market_cap)
+            .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url).execute(pool).await?;
+    } else {
+        let detail = resolved.as_ref().unwrap_err().to_string();
+        sqlx::query("UPDATE tokens SET market_status='unavailable',last_market_error=$2,updated_at=NOW() WHERE id=$1")
+            .bind(pending.token_id).bind(&detail).execute(pool).await?;
+        sqlx::query("UPDATE shills SET market_status='unavailable' WHERE id=$1")
+            .bind(pending.shill_id).execute(pool).await?;
+        let category = if detail.contains("429") {
+            "dexscreener_rate_limit"
+        } else {
+            "dexscreener_ingestion_error"
+        };
+        // Failed enrichment is now reported from its background task; the
+        // immediate frontend shill remains available for manual inspection.
+        notifications::important(
+            category,
+            &format!(
+                "ShillTrace\nNew shill market lookup failed\nContract: {}\nError: {detail}",
+                pending.address
+            ),
+        )
+        .await;
+        let _ = events.send(json!({"type":"shill_updated","shill_id":pending.shill_id}).to_string());
         return Ok(());
     }
 
     let initial = match &resolved {
         Ok(snapshot) => match market
-            .historical_market_cap(snapshot, address, sent_at)
+            .historical_market_cap(snapshot, &pending.address, pending.sent_at)
             .await
         {
             Ok(value) => Some(value),
             Err(error)
                 if chrono::Utc::now()
-                    .signed_duration_since(sent_at)
+                    .signed_duration_since(pending.sent_at)
                     .num_minutes()
                     <= 5 =>
             {
@@ -185,24 +236,29 @@ async fn ingest_candidate(
                 // Screener before GeckoTerminal supports historical candles.
                 // For live Telegram shills, the immediately resolved market cap
                 // is the closest available value to the message timestamp.
-                tracing::warn!(%error, chain = snapshot.chain_id, address, "Historical candle unavailable; using live shill market cap");
+                tracing::warn!(%error, chain = snapshot.chain_id, address = %pending.address, "Historical candle unavailable; using live shill market cap");
                 Some(snapshot.current_market_cap)
             }
             Err(error) => {
-                tracing::warn!(%error, address, "Initial market cap unavailable");
+                tracing::warn!(%error, address = %pending.address, "Initial market cap unavailable");
                 None
             }
         },
         Err(_) => None,
     };
-    let shill_id: i64 = sqlx::query_scalar("INSERT INTO shills(tracking_period_id,token_id,channel_id,first_message_id,shilled_at,initial_market_cap,max_market_cap,market_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id")
-        .bind(period_id).bind(token_id).bind(channel_id).bind(message_row_id).bind(sent_at)
-        .bind(initial).bind(resolved.as_ref().ok().map(|v| v.current_market_cap))
-        .bind(if initial.is_some() { "tracking" } else { "unavailable" }).fetch_one(pool).await?;
-    sqlx::query("INSERT INTO shill_messages(shill_id,telegram_message_id) VALUES($1,$2)")
-        .bind(shill_id)
-        .bind(message_row_id)
-        .execute(pool)
-        .await?;
+    let snapshot = resolved.as_ref().expect("successful resolve handled above");
+    let mut tx = pool.begin().await?;
+    // Complete only the placeholder shill that triggered this task; other
+    // channel calls in the same tracking period retain their own timestamps.
+    sqlx::query("UPDATE shills SET initial_market_cap=$2,max_market_cap=$3,market_status=$4 WHERE id=$1")
+        .bind(pending.shill_id).bind(initial).bind(snapshot.current_market_cap)
+        .bind(if initial.is_some() { "tracking" } else { "unavailable" })
+        .execute(&mut *tx).await?;
+    sqlx::query("UPDATE tracking_periods SET highest_market_cap=GREATEST(COALESCE(highest_market_cap,0),$2) WHERE id=$1")
+        .bind(pending.period_id).bind(snapshot.current_market_cap).execute(&mut *tx).await?;
+    tx.commit().await?;
+    // This second event is deliberately silent in the frontend: its existing
+    // handler refreshes every SSE type but plays audio only for `new_shill`.
+    let _ = events.send(json!({"type":"shill_updated","shill_id":pending.shill_id}).to_string());
     Ok(())
 }
