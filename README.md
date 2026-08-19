@@ -1,69 +1,57 @@
 # ShillTrace
 
-ShillTrace is a private, self-hosted Telegram token-call tracker. It listens to selected Telegram channels, extracts EVM and Solana contract addresses, resolves market data, and records how each call performs over time.
+ShillTrace is a self-hosted Telegram token-call intelligence dashboard. It ingests selected Telegram channels in real time, detects token contracts across supported chains, resolves market data, and measures how every call performs after it appears.
 
-## Features
+## Highlights
 
-- Telegram MTProto authentication and real-time channel ingestion
-- EVM and Solana contract detection from messages and common trading links
-- DEX Screener discovery and live market-cap resolution
-- GeckoTerminal historical lookup for the initial market cap
-- Separate tokens, tracking periods, shills, messages, and market-cap samples
-- New Shills review inbox and chronological All Tokens archive
-- Channel search, pinning, ignoring, and per-channel shill history
-- Live UI refresh through server-sent events with polling fallback
-- Retry and stop-tracking controls without deleting historical records
+- Real-time Telegram MTProto ingestion with channel discovery
+- Contract detection for EVM, Solana and supported trading links
+- DEX Screener market discovery with GeckoTerminal historical lookup
+- Initial/current market cap, current X and max X tracking
+- New-shill review inbox and chronological token archive
+- Per-channel history, pinning, ignoring and visibility controls
+- SSE-driven UI updates with polling fallback and audible alerts
+- PostgreSQL-backed history with retry and destructive cleanup controls
 
 ## Stack
 
-- **Backend:** Rust, Tokio, Axum, SQLx, PostgreSQL, `grammers`
-- **Frontend:** React, TypeScript, Vite, Lucide
-- **Market data:** DEX Screener and GeckoTerminal
+**Backend:** Rust, Tokio, Axum, SQLx, PostgreSQL, grammers  
+**Frontend:** React, TypeScript, Vite, Lucide  
+**Data:** DEX Screener, GeckoTerminal  
+**Runtime:** Docker Compose for local PostgreSQL
 
-## Prerequisites
+## Repository structure
 
-- Rust toolchain compatible with edition 2024
-- Node.js 20 or newer and npm
-- Docker with Docker Compose, or a local PostgreSQL instance
-- Telegram API credentials from `my.telegram.org`
-
-## Configuration
-
-Create `backend/.env` with the following values:
-
-```dotenv
-DATABASE_URL=postgres://signal_ledger:signal_ledger@127.0.0.1:5433/signal_ledger
-TELEGRAM_API_ID=your_api_id
-TELEGRAM_API_HASH=your_api_hash
-TELEGRAM_PHONE_NUMBER=+381...
-
-# Optional
-TELEGRAM_PASSWORD=
-API_BIND_ADDR=127.0.0.1:3001
-FRONTEND_ORIGIN=http://localhost:5173
-TELEGRAM_SESSION_PATH=signal_ledger.session
-PHOTOS_DIR=storage/channel-photos
-MARKET_POLL_SECONDS=15
+```text
+backend/
+  migrations/       SQLx schema evolution
+  src/
+    telegram/       MTProto setup, dialogs and update ingestion
+    api.rs           Axum routes and HTTP/SSE boundary
+    detection.rs     contract extraction
+    market.rs        market-data clients
+    tracker.rs       background market sampling
+frontend/
+  src/
+    components/      dashboard UI
+    hooks/           application state and live-update orchestration
+    utils/           pure formatting helpers
+docs/
+  ARCHITECTURE.md
 ```
 
-Never commit `.env`, Telegram session files, or downloaded channel photos.
+## Local development
 
-## Run locally
-
-Start PostgreSQL from the repository root:
+Copy `backend/.env.example` to `backend/.env` and fill in your Telegram credentials. Then:
 
 ```bash
 docker compose up -d postgres
-```
 
-Start the backend:
-
-```bash
 cd backend
 cargo run
 ```
 
-On the first run, complete Telegram authentication in the backend terminal. Then start the frontend in another terminal:
+Complete Telegram authentication in the backend terminal on first run. In another terminal:
 
 ```bash
 cd frontend
@@ -71,7 +59,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+The frontend runs at `http://localhost:5173` and the API defaults to `http://127.0.0.1:3001`.
 
 ## Verification
 
@@ -80,15 +68,19 @@ cd backend && cargo check
 cd ../frontend && npm run build
 ```
 
-## Product behavior
+## Security
 
-- **Seen** removes a shill from the inbox while its token stays tracked.
-- **Remove token** closes the active tracking period but preserves history.
-- A later call for a stopped token automatically starts a new tracking period.
-- Calls from different channels remain separate and keep their own initial and maximum multipliers.
-- Later messages from the same channel attach to its existing shill.
-- Unavailable historical market data is informational and can be retried from the UI.
+ShillTrace is intended for private/self-hosted operation and currently has no application authentication layer. Do not expose the API or PostgreSQL directly to the public internet.
 
-## Security and license
+Never commit `.env`, Telegram `*.session` files, downloaded channel data, or database exports. See [SECURITY.md](SECURITY.md).
 
-See [SECURITY.md](SECURITY.md) before deploying or reporting a vulnerability. This is private proprietary software; see [LICENSE](LICENSE).
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+## License
+
+MIT — see [LICENSE](LICENSE).

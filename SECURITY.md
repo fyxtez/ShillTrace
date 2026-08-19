@@ -22,3 +22,7 @@ ShillTrace handles credentials and session material that must never be committed
 - downloaded Telegram channel photos or private message contents.
 
 Run the API on a private interface unless authentication and an appropriate reverse-proxy configuration have been added. Keep PostgreSQL bound to localhost for local development, rotate any exposed credential immediately, and revoke a Telegram session if its file may have leaked.
+
+## Telegram session warning
+
+Telegram session files are authentication material, not cache files. Anyone who obtains a valid session may be able to act through that Telegram account/session. If a session file was ever published, revoke the affected Telegram session and generate a new local session.
