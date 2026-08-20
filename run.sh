@@ -10,6 +10,8 @@ ENV_FILE="$PROJECT_DIR/.env"
 COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 FRONTEND_URL="http://localhost:5174"
 
+BACKEND_BINARY="shilltrace-backend"
+
 backend_pid=""
 frontend_pid=""
 browser_wait_pid=""
@@ -69,8 +71,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
-# Export variables from the root .env so the backend receives them even though
-# Cargo is started from inside the backend directory.
+# Export variables from the root .env so the backend receives them.
 set -a
 source "$ENV_FILE"
 set +a
@@ -105,10 +106,26 @@ if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
     npm --prefix "$FRONTEND_DIR" install
 fi
 
-printf 'Starting backend...\n'
+# Build backend in release mode before starting anything.
+printf 'Building backend release...\n'
 (
     cd "$BACKEND_DIR"
-    cargo run
+    cargo build --release
+)
+
+BACKEND_EXECUTABLE="$BACKEND_DIR/target/release/$BACKEND_BINARY"
+
+if [[ ! -x "$BACKEND_EXECUTABLE" ]]; then
+    printf 'Error: backend executable not found at:\n%s\n' \
+        "$BACKEND_EXECUTABLE" >&2
+    printf 'Check BACKEND_BINARY at the top of this script.\n' >&2
+    exit 1
+fi
+
+printf 'Starting backend release...\n'
+(
+    cd "$BACKEND_DIR"
+    exec "$BACKEND_EXECUTABLE"
 ) &
 backend_pid=$!
 
@@ -136,7 +153,8 @@ if command -v curl >/dev/null 2>&1; then
     browser_wait_pid=$!
 fi
 
-printf '\nShillTrace is starting at %s\n' "$FRONTEND_URL"
+printf '\nShillTrace is running at %s\n' "$FRONTEND_URL"
+printf 'Backend: RELEASE build\n'
 printf 'Press Ctrl+C to stop the backend and frontend.\n\n'
 
 # If either the backend or frontend exits, stop the remaining processes.

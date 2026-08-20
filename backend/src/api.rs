@@ -1,6 +1,7 @@
 use crate::{
+    db, detection,
     market::MarketClient,
-    models::{ChannelView, ShillView},
+    models::{ChannelView, ShillView, WalletView},
     notifications,
 };
 use axum::{
@@ -46,6 +47,8 @@ pub fn router(state: AppState, frontend_origin: &str) -> Router {
         .route("/api/tokens/{id}/retry", post(retry_token))
         .route("/api/shills/{id}/history", get(shill_history))
         .route("/api/channels", get(list_channels))
+        .route("/api/wallets", get(list_wallets))
+        .route("/api/wallets/{id}", delete(remove_wallet_mention))
         .route("/api/channels/{id}/ignored", patch(set_ignored))
         .route("/api/channels/{id}/pinned", patch(set_pinned))
         .route("/api/channels/{id}/hidden", patch(set_hidden))
@@ -172,17 +175,51 @@ async fn retry_token(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT contract_address FROM tokens WHERE id=$1")
+    let row: Option<(String, Option<String>)> = sqlx::query_as(r#"
+        SELECT t.contract_address,(
+            SELECT m.body FROM shills s JOIN telegram_messages m ON m.id=s.first_message_id
+            WHERE s.token_id=t.id ORDER BY s.shilled_at LIMIT 1
+        )
+        FROM tokens t WHERE t.id=$1
+    "#)
         .bind(id)
         .fetch_optional(&state.pool)
         .await?;
-    let Some((address,)) = row else {
+    let Some((address, source_message)) = row else {
         return Err(ApiError::not_found("token not found"));
     };
     let snapshot = match state.market.resolve(&address).await {
         Ok(snapshot) => snapshot,
         Err(error) => {
             let detail = error.to_string();
+            // Manual retry also repairs already-stored unresolved wallet rows. The
+            // original Telegram text supplies the EVM explorer chain hint, and the
+            // RPC check still happens only after DEX confirms there is no token pair.
+            if detail.contains("DEX Screener found no pair with market-cap data") {
+                let hinted_chain = source_message.as_deref().and_then(|message| {
+                    detection::detect_addresses(message)
+                        .into_iter()
+                        .find(|candidate| candidate.address.eq_ignore_ascii_case(&address))
+                        .and_then(|candidate| detection::wallet_chain_hint(message, candidate.address_kind))
+                });
+
+                let wallet_chain = if let Some(chain_hint) = hinted_chain {
+                    state.market.is_wallet(&address, chain_hint).await
+                        .unwrap_or(false)
+                        .then_some(chain_hint)
+                } else if address.starts_with("0x") {
+                    state.market.discover_evm_wallet_chain(&address).await
+                } else {
+                    None
+                };
+
+                if let Some(chain_id) = wallet_chain {
+                    let wallet_id = db::reclassify_token_as_wallet(&state.pool, id, &address, chain_id).await
+                        .map_err(ApiError::internal)?;
+                    let _ = state.events.send(json!({"type":"candidate_reclassified_wallet","wallet_id":wallet_id}).to_string());
+                    return Ok(Json(json!({"ok":true,"reclassified":"wallet"})));
+                }
+            }
             let category = if detail.contains("429") {
                 "dexscreener_rate_limit"
             } else {
@@ -261,6 +298,52 @@ async fn shill_history(
         ),
     );
     Ok(Json(json!(history)))
+}
+
+async fn list_wallets(State(state): State<AppState>) -> Result<Json<Vec<WalletView>>, ApiError> {
+    // Wallet mentions intentionally query their own tables instead of joining
+    // shills, keeping wallet activity out of every token/channel performance metric.
+    let rows = sqlx::query_as::<_, WalletView>(r#"
+        SELECT wm.id,w.address,w.chain_id,wm.channel_id,c.name AS channel_name,c.has_photo AS channel_has_photo,
+               m.body AS message,wm.mentioned_at
+        FROM wallet_mentions wm
+        JOIN wallets w ON w.id=wm.wallet_id
+        JOIN channels c ON c.telegram_id=wm.channel_id
+        JOIN telegram_messages m ON m.id=wm.telegram_message_id
+        ORDER BY wm.mentioned_at DESC
+    "#).fetch_all(&state.pool).await?;
+    Ok(Json(rows))
+}
+
+async fn remove_wallet_mention(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Value>, ApiError> {
+    let mut tx = state.pool.begin().await?;
+    let wallet_id: Option<i64> = sqlx::query_scalar(
+        "DELETE FROM wallet_mentions WHERE id=$1 RETURNING wallet_id",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(wallet_id) = wallet_id else {
+        return Err(ApiError::not_found("wallet mention not found"));
+    };
+
+    // Delete only the selected mention from the UI, then remove the wallet row
+    // only when no other monitored message still references it.
+    sqlx::query(
+        "DELETE FROM wallets w WHERE w.id=$1 AND NOT EXISTS (SELECT 1 FROM wallet_mentions wm WHERE wm.wallet_id=w.id)",
+    )
+    .bind(wallet_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let _ = state
+        .events
+        .send(json!({"type":"wallet_deleted","wallet_mention_id":id}).to_string());
+    Ok(Json(json!({"ok":true})))
 }
 
 async fn list_channels(State(state): State<AppState>) -> Result<Json<Vec<ChannelView>>, ApiError> {
@@ -368,6 +451,12 @@ impl ApiError {
     fn market(error: anyhow::Error) -> Self {
         Self {
             status: StatusCode::BAD_GATEWAY,
+            message: error.to_string(),
+        }
+    }
+    fn internal(error: anyhow::Error) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
             message: error.to_string(),
         }
     }

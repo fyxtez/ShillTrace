@@ -1,7 +1,7 @@
 mod dialogs;
 mod initialize;
 
-use crate::{config::Config, detection, market::MarketClient, notifications};
+use crate::{config::Config, db, detection, market::MarketClient, notifications};
 use anyhow::{Result, anyhow};
 use grammers_client::update::Update;
 use grammers_mtsender::UpdatesConfiguration;
@@ -15,7 +15,14 @@ struct PendingEnrichment {
     period_id: i64,
     shill_id: i64,
     address: String,
+    wallet_chain_hint: Option<&'static str>,
     sent_at: chrono::DateTime<chrono::Utc>,
+}
+
+enum FastIngestOutcome {
+    NewToken(PendingEnrichment),
+    NewWallet,
+    Duplicate,
 }
 
 pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>) -> Result<()> {
@@ -77,17 +84,27 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
         ).bind(telegram_message_id).bind(channel_id).bind(text).bind(sent_at).fetch_one(&pool).await?;
 
         let mut pending_enrichments = Vec::new();
+        let mut new_wallet = false;
         for candidate in candidates {
             // Persist the minimum user-visible record before any external HTTP
             // call so frontend notification latency depends only on Telegram
             // delivery and PostgreSQL, not DEX/Gecko response time.
+            let wallet_chain_hint = detection::wallet_chain_hint(text, candidate.address_kind);
             match ingest_candidate_fast(
-                &pool, channel_id, message_row_id, sent_at, &candidate.address,
-            ).await {
-                Ok(Some(pending)) => pending_enrichments.push(pending),
-                // A repeated call from the same channel only attaches its
-                // message; it is not a new shill and must not ring again.
-                Ok(None) => {}
+                &pool,
+                channel_id,
+                message_row_id,
+                sent_at,
+                &candidate.address,
+                wallet_chain_hint,
+            )
+            .await
+            {
+                Ok(FastIngestOutcome::NewToken(pending)) => pending_enrichments.push(pending),
+                Ok(FastIngestOutcome::NewWallet) => new_wallet = true,
+                // Repeated token/wallet mentions are stored but do not create a
+                // duplicate alert for the same Telegram message.
+                Ok(FastIngestOutcome::Duplicate) => {}
                 Err(error) => {
                     tracing::error!(%error, address = candidate.address, channel_id, "Failed to ingest token candidate")
                 }
@@ -97,7 +114,14 @@ pub async fn run(config: Config, pool: PgPool, events: broadcast::Sender<String>
             // Every minimal shill is committed before this event, so the first
             // frontend refresh can display it immediately with resolving data.
             let _ = events.send(json!({"type":"new_shill"}).to_string());
+        }
+        if new_wallet {
+            // Known wallets stay on the DB-only hot path and get their own event,
+            // so repeat wallet calls appear instantly without any market request.
+            let _ = events.send(json!({"type":"new_wallet"}).to_string());
+        }
 
+        if !pending_enrichments.is_empty() {
             for pending in pending_enrichments {
                 let task_pool = pool.clone();
                 let task_market = market.clone();
@@ -127,7 +151,34 @@ async fn ingest_candidate_fast(
     message_row_id: i64,
     sent_at: chrono::DateTime<chrono::Utc>,
     address: &str,
-) -> Result<Option<PendingEnrichment>> {
+    wallet_chain_hint: Option<&'static str>,
+) -> Result<FastIngestOutcome> {
+    // Once an address has been verified as a wallet, future mentions bypass token
+    // creation and DEX enrichment entirely. This adds only a local indexed lookup
+    // and keeps the network-free Telegram hot path intact.
+    if let Some(chain_hint) = wallet_chain_hint {
+        let known_wallet: Option<(i64,)> = sqlx::query_as(
+            "SELECT id FROM wallets WHERE chain_id=$1 AND LOWER(address)=LOWER($2)",
+        )
+        .bind(chain_hint)
+        .bind(address)
+        .fetch_optional(pool)
+        .await?;
+        if let Some((wallet_id,)) = known_wallet {
+            let inserted = sqlx::query(
+                "INSERT INTO wallet_mentions(wallet_id,channel_id,telegram_message_id,mentioned_at) VALUES($1,$2,$3,$4) ON CONFLICT(wallet_id,telegram_message_id) DO NOTHING",
+            )
+            .bind(wallet_id)
+            .bind(channel_id)
+            .bind(message_row_id)
+            .bind(sent_at)
+            .execute(pool)
+            .await?
+            .rows_affected();
+            return Ok(if inserted > 0 { FastIngestOutcome::NewWallet } else { FastIngestOutcome::Duplicate });
+        }
+    }
+
     let existing: Option<(i64,)> = sqlx::query_as(
         "SELECT id FROM tokens WHERE LOWER(contract_address)=LOWER($1) ORDER BY (chain_id IS NULL), id LIMIT 1"
     ).bind(address).fetch_optional(pool).await?;
@@ -162,7 +213,7 @@ async fn ingest_candidate_fast(
     if let Some((shill_id,)) = existing_shill {
         sqlx::query("INSERT INTO shill_messages(shill_id,telegram_message_id) VALUES($1,$2) ON CONFLICT DO NOTHING")
             .bind(shill_id).bind(message_row_id).execute(pool).await?;
-        return Ok(None);
+        return Ok(FastIngestOutcome::Duplicate);
     }
 
     // The placeholder is intentionally complete enough for list_shills: it
@@ -174,11 +225,12 @@ async fn ingest_candidate_fast(
         .bind(message_row_id)
         .execute(pool)
         .await?;
-    Ok(Some(PendingEnrichment {
+    Ok(FastIngestOutcome::NewToken(PendingEnrichment {
         token_id,
         period_id,
         shill_id,
         address: address.to_owned(),
+        wallet_chain_hint,
         sent_at,
     }))
 }
@@ -197,6 +249,35 @@ async fn enrich_candidate(
             .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url).execute(pool).await?;
     } else {
         let detail = resolved.as_ref().unwrap_err().to_string();
+        // Only a genuine "no pair" result is eligible for wallet probing. Rate
+        // limits and provider failures leave the fast placeholder untouched so a
+        // temporary outage can never misclassify a token as a wallet.
+        if detail.contains("DEX Screener found no pair with market-cap data") {
+            let wallet_chain = if let Some(chain_hint) = pending.wallet_chain_hint {
+                match market.is_wallet(&pending.address, chain_hint).await {
+                    Ok(true) => Some(chain_hint),
+                    Ok(false) => None,
+                    Err(error) => {
+                        tracing::warn!(%error, address = %pending.address, chain = chain_hint, "Wallet verification failed; keeping unresolved token");
+                        None
+                    }
+                }
+            } else if pending.address.starts_with("0x") {
+                // Raw EVM addresses are chain-ambiguous. This discovery runs only
+                // after DEX resolution fails and outside the Telegram hot path.
+                market.discover_evm_wallet_chain(&pending.address).await
+            } else {
+                None
+            };
+
+            if let Some(chain_id) = wallet_chain {
+                let wallet_id = db::reclassify_token_as_wallet(
+                    pool, pending.token_id, &pending.address, chain_id,
+                ).await?;
+                let _ = events.send(json!({"type":"candidate_reclassified_wallet","wallet_id":wallet_id}).to_string());
+                return Ok(());
+            }
+        }
         sqlx::query("UPDATE tokens SET market_status='unavailable',last_market_error=$2,updated_at=NOW() WHERE id=$1")
             .bind(pending.token_id).bind(&detail).execute(pool).await?;
         sqlx::query("UPDATE shills SET market_status='unavailable' WHERE id=$1")
@@ -262,3 +343,4 @@ async fn enrich_candidate(
     let _ = events.send(json!({"type":"shill_updated","shill_id":pending.shill_id}).to_string());
     Ok(())
 }
+

@@ -42,3 +42,16 @@ pub struct ChannelView {
     pub median_current_x: Option<f64>,
     pub average_max_x: Option<f64>,
 }
+
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct WalletView {
+    pub id: i64,
+    pub address: String,
+    pub chain_id: String,
+    pub channel_id: i64,
+    pub channel_name: String,
+    pub channel_has_photo: bool,
+    pub message: String,
+    pub mentioned_at: DateTime<Utc>,
+}

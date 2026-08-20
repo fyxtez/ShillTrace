@@ -2,6 +2,7 @@ export interface Shill { id:number; token_id:number; symbol:string|null; token_n
 export interface Channel { telegram_id:number; name:string; kind:string; is_ignored:boolean; is_pinned:boolean; is_hidden:boolean; has_photo:boolean; shill_count:number; last_shill_at:string|null; average_current_x:number|null; median_current_x:number|null; average_max_x:number|null }
 export interface HistoryPoint { time:string; market_cap:number; is_initial?:boolean }
 export interface Health { status:string; market_poll_seconds:number }
+export interface WalletMention { id:number; address:string; chain_id:string; channel_id:number; channel_name:string; channel_has_photo:boolean; message:string; mentioned_at:string }
 // Settings is intentionally omitted until the page contains user-controlled
 // options; this keeps the primary navigation focused on working features.
-export type Page = 'new'|'all'|'channels'|'ignored'
+export type Page = 'new'|'all'|'wallets'|'channels'|'ignored'

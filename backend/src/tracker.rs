@@ -29,8 +29,8 @@ async fn poll_once(
     market: &MarketClient,
     events: &broadcast::Sender<String>,
 ) -> anyhow::Result<()> {
-    let active: Vec<(i64, i64, String, chrono::DateTime<Utc>)> = sqlx::query_as(
-        "SELECT t.id, p.id, t.contract_address, p.started_at FROM tokens t JOIN tracking_periods p ON p.token_id=t.id AND p.status='active' WHERE t.market_status='tracking'"
+    let active: Vec<(i64, i64, String, String, String, f64, chrono::DateTime<Utc>)> = sqlx::query_as(
+        "SELECT t.id,p.id,t.contract_address,t.chain_id,t.pair_address,t.current_market_cap,p.started_at FROM tokens t JOIN tracking_periods p ON p.token_id=t.id AND p.status='active' WHERE t.market_status='tracking' AND t.chain_id IS NOT NULL AND t.pair_address IS NOT NULL AND t.current_market_cap IS NOT NULL"
     ).fetch_all(pool).await?;
 
     // TODO:
@@ -44,9 +44,22 @@ async fn poll_once(
     // TODO: use futures::stream::iter(active).for_each_concurrent(N, ...) to
     // parallelize per-token polling (cap N to stay under the rate limit), and
     // consider interval.set_missed_tick_behavior(MissedTickBehavior::Delay).
-    for (token_id, period_id, address, started_at) in active {
-        match market.resolve(&address).await {
+    for (token_id, period_id, address, chain_id, pair_address, previous_market_cap, started_at) in active {
+        match market.resolve_locked(&address, &chain_id, &pair_address).await {
             Ok(snapshot) => {
+                // A second guard protects Max X even if a provider returns corrupt
+                // data for the locked pair itself. A 100x move between 15-second
+                // polls is treated as telemetry corruption, not a real market move.
+                let jump = snapshot.current_market_cap / previous_market_cap;
+                if !(0.01..=100.0).contains(&jump) {
+                    tracing::warn!(address, previous_market_cap, market_cap = snapshot.current_market_cap, jump, "Rejected impossible market-cap jump");
+                    notifications::important(
+                        "market_cap_outlier",
+                        &format!("ShillTrace\nRejected market-cap outlier\nToken: {address}\nPrevious: {previous_market_cap:.2}\nReceived: {:.2}", snapshot.current_market_cap),
+                    )
+                    .await;
+                    continue;
+                }
                 let now = Utc::now();
                 let mut tx = pool.begin().await?;
                 // Refresh socials together with market data because projects

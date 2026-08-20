@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::{cmp::Ordering, time::Duration};
 
 const DEX_SEARCH: &str = "https://api.dexscreener.com/latest/dex/search";
+const DEX_PAIRS: &str = "https://api.dexscreener.com/latest/dex/pairs";
 const GECKO: &str = "https://api.geckoterminal.com/api/v2";
 
 #[derive(Clone)]
@@ -108,6 +109,27 @@ struct GeckoRelationshipData {
     id: String,
 }
 
+
+#[derive(Deserialize)]
+struct JsonRpcResponse {
+    result: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SolanaRpcResponse {
+    result: Option<SolanaAccountResult>,
+}
+
+#[derive(Deserialize)]
+struct SolanaAccountResult {
+    value: Option<SolanaAccountValue>,
+}
+
+#[derive(Deserialize)]
+struct SolanaAccountValue {
+    owner: String,
+}
+
 impl MarketClient {
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -153,39 +175,146 @@ impl MarketClient {
             .into_iter()
             .find(|pair| pair.market_cap.is_some() && pair.price_usd.is_some())
             .context("DEX Screener found no pair with market-cap data")?;
-        let token = &pair.base_token;
-        let current_price = pair
-            .price_usd
-            .as_deref()
-            .context("missing priceUsd")?
-            .parse::<f64>()?;
-        let current_market_cap = pair.market_cap.context("missing marketCap")?;
-        if current_market_cap <= 0.0 || current_price <= 0.0 {
-            bail!("non-positive market data")
-        }
-
         // DEX Screener already normalizes official project links. Persisting
         // them with the token avoids extra frontend requests and lets missing
         // socials render as intentionally inactive controls.
-        let info = pair.info;
-        let website_url = info
-            .as_ref()
-            .and_then(|value| value.websites.first())
-            .map(|value| value.url.clone());
-        let twitter_url = social_url(info.as_ref(), "twitter");
-        let telegram_url = social_url(info.as_ref(), "telegram");
-        Ok(MarketSnapshot {
-            chain_id: pair.chain_id,
-            pair_address: pair.pair_address,
-            symbol: token.symbol.clone(),
-            name: token.name.clone(),
-            image_url: info.as_ref().and_then(|value| value.image_url.clone()),
-            website_url,
-            twitter_url,
-            telegram_url,
-            current_market_cap,
-            current_price,
-        })
+        snapshot_from_pair(pair)
+    }
+
+    // Tracking must stay on the exact DEX pair chosen during enrichment. Re-running
+    // the broad search every 15 seconds can jump to a spoof/malformed pool for the
+    // same mint and permanently inflate Max X with market caps the real chart never had.
+    pub async fn resolve_locked(
+        &self,
+        address: &str,
+        chain_id: &str,
+        pair_address: &str,
+    ) -> Result<MarketSnapshot> {
+        let url = format!("{DEX_PAIRS}/{chain_id}/{pair_address}");
+        let response = self
+            .http
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<SearchResponse>()
+            .await?;
+        let pair = response
+            .pairs
+            .into_iter()
+            .find(|pair| {
+                pair.pair_address.eq_ignore_ascii_case(pair_address)
+                    && pair.base_token.address.eq_ignore_ascii_case(address)
+                    && pair.market_cap.is_some()
+                    && pair.price_usd.is_some()
+            })
+            .context("locked DEX pair no longer has market-cap data")?;
+        snapshot_from_pair(pair)
+    }
+
+    // For a raw 0x address there is no trustworthy chain hint. After DEX
+    // resolution has failed, probe supported EVM chains in the background and
+    // classify the address as a wallet only when the account has real on-chain
+    // activity (nonce or native balance) and no contract bytecode on that chain.
+    // Requiring activity is important: eth_getCode returns 0x for both EOAs and
+    // completely nonexistent addresses, which would otherwise turn every unknown
+    // contract into a false wallet on some other EVM chain.
+    pub async fn discover_evm_wallet_chain(&self, address: &str) -> Option<&'static str> {
+        const CHAINS: [&str; 6] = [
+            "ethereum", "base", "bsc", "arbitrum", "polygon", "optimism",
+        ];
+
+        for chain in CHAINS {
+            match self.is_active_evm_wallet(address, chain).await {
+                Ok(true) => return Some(chain),
+                Ok(false) => {}
+                Err(error) => tracing::debug!(%error, address, chain, "EVM wallet discovery probe failed"),
+            }
+        }
+        None
+    }
+
+    async fn is_active_evm_wallet(&self, address: &str, chain: &str) -> Result<bool> {
+        let endpoint = evm_rpc(chain)?;
+        let code = self.evm_rpc_string(endpoint, "eth_getCode", address).await?;
+        if !is_zero_hex(&code) {
+            return Ok(false);
+        }
+
+        let nonce = self.evm_rpc_string(endpoint, "eth_getTransactionCount", address).await?;
+        if !is_zero_hex(&nonce) {
+            return Ok(true);
+        }
+
+        let balance = self.evm_rpc_string(endpoint, "eth_getBalance", address).await?;
+        Ok(!is_zero_hex(&balance))
+    }
+
+    async fn evm_rpc_string(&self, endpoint: &str, method: &str, address: &str) -> Result<String> {
+        let params = serde_json::json!([address, "latest"]);
+        let response = self
+            .http
+            .post(endpoint)
+            .json(&serde_json::json!({
+                "jsonrpc":"2.0",
+                "id":1,
+                "method":method,
+                "params":params
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<JsonRpcResponse>()
+            .await?;
+        response.result.context("EVM RPC returned no result")
+    }
+
+    // Wallet classification deliberately runs only after token resolution fails,
+    // so the Telegram hot path remains DB-only. EVM EOAs are verified by bytecode
+    // and Solana wallets by their System Program owner; an unresolved token is never
+    // moved merely because DEX Screener has not indexed it yet.
+    pub async fn is_wallet(&self, address: &str, chain_hint: &str) -> Result<bool> {
+        match chain_hint {
+            "ethereum" | "base" | "bsc" | "arbitrum" | "polygon" | "optimism" => {
+                let endpoint = evm_rpc(chain_hint)?;
+                let response = self
+                    .http
+                    .post(endpoint)
+                    .json(&serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "id":1,
+                        "method":"eth_getCode",
+                        "params":[address,"latest"]
+                    }))
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json::<JsonRpcResponse>()
+                    .await?;
+                Ok(matches!(response.result.as_deref(), Some("0x") | Some("0x0")))
+            }
+            "solana" => {
+                let response = self
+                    .http
+                    .post("https://solana-rpc.publicnode.com")
+                    .json(&serde_json::json!({
+                        "jsonrpc":"2.0",
+                        "id":1,
+                        "method":"getAccountInfo",
+                        "params":[address,{"encoding":"base64"}]
+                    }))
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json::<SolanaRpcResponse>()
+                    .await?;
+                Ok(response
+                    .result
+                    .and_then(|result| result.value)
+                    .is_some_and(|value| value.owner == "11111111111111111111111111111111"))
+            }
+            _ => Ok(false),
+        }
     }
 
     pub async fn historical_market_cap(
@@ -274,6 +403,55 @@ impl MarketClient {
         } else {
             bail!("tracked token is not part of the selected Gecko pool")
         }
+    }
+}
+
+fn snapshot_from_pair(pair: Pair) -> Result<MarketSnapshot> {
+    let current_price = pair
+        .price_usd
+        .as_deref()
+        .context("missing priceUsd")?
+        .parse::<f64>()?;
+    let current_market_cap = pair.market_cap.context("missing marketCap")?;
+    if current_market_cap <= 0.0 || current_price <= 0.0 {
+        bail!("non-positive market data")
+    }
+    let token = &pair.base_token;
+    let info = pair.info;
+    let website_url = info
+        .as_ref()
+        .and_then(|value| value.websites.first())
+        .map(|value| value.url.clone());
+    let twitter_url = social_url(info.as_ref(), "twitter");
+    let telegram_url = social_url(info.as_ref(), "telegram");
+    Ok(MarketSnapshot {
+        chain_id: pair.chain_id,
+        pair_address: pair.pair_address,
+        symbol: token.symbol.clone(),
+        name: token.name.clone(),
+        image_url: info.as_ref().and_then(|value| value.image_url.clone()),
+        website_url,
+        twitter_url,
+        telegram_url,
+        current_market_cap,
+        current_price,
+    })
+}
+
+fn is_zero_hex(value: &str) -> bool {
+    let digits = value.strip_prefix("0x").unwrap_or(value);
+    digits.is_empty() || digits.bytes().all(|byte| byte == b'0')
+}
+
+fn evm_rpc(chain: &str) -> Result<&'static str> {
+    match chain {
+        "ethereum" => Ok("https://ethereum-rpc.publicnode.com"),
+        "base" => Ok("https://base-rpc.publicnode.com"),
+        "bsc" => Ok("https://bsc-rpc.publicnode.com"),
+        "arbitrum" => Ok("https://arbitrum-one-rpc.publicnode.com"),
+        "polygon" => Ok("https://polygon-bor-rpc.publicnode.com"),
+        "optimism" => Ok("https://optimism-rpc.publicnode.com"),
+        other => bail!("wallet RPC mapping missing for {other}"),
     }
 }
 
