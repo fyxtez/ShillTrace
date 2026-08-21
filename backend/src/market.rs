@@ -157,18 +157,23 @@ impl MarketClient {
             .error_for_status()?
             .json::<SearchResponse>()
             .await?;
-        // DEX Screener pair-level priceUsd and marketCap describe the base
-        // token. Quote-token matches would attach another asset's valuation to
-        // the detected contract, so only true base-token pools are eligible.
+        // Telegram callers sometimes post the DEX pair address instead of the
+        // base-token CA. Accept an exact pair-address match as a safe fallback,
+        // while sorting direct base-token matches first so an address that is
+        // both a token and appears in unrelated search results stays canonical.
         let mut pairs: Vec<Pair> = response
             .pairs
             .into_iter()
-            .filter(|pair| pair.base_token.address.eq_ignore_ascii_case(address))
+            .filter(|pair| pair_matches_address(pair, address))
             .collect();
         pairs.sort_by(|a, b| {
-            liquidity(b)
-                .partial_cmp(&liquidity(a))
-                .unwrap_or(Ordering::Equal)
+            base_token_match(b, address)
+                .cmp(&base_token_match(a, address))
+                .then_with(|| {
+                    liquidity(b)
+                        .partial_cmp(&liquidity(a))
+                        .unwrap_or(Ordering::Equal)
+                })
         });
 
         let pair = pairs
@@ -204,7 +209,10 @@ impl MarketClient {
             .into_iter()
             .find(|pair| {
                 pair.pair_address.eq_ignore_ascii_case(pair_address)
-                    && pair.base_token.address.eq_ignore_ascii_case(address)
+                    // Pair-address shills keep the originally posted address in
+                    // storage, so locked polling must accept that exact pair as
+                    // well as the usual base-token contract address.
+                    && pair_matches_address(pair, address)
                     && pair.market_cap.is_some()
                     && pair.price_usd.is_some()
             })
@@ -470,6 +478,14 @@ fn liquidity(pair: &Pair) -> f64 {
         .as_ref()
         .and_then(|value| value.usd)
         .unwrap_or(0.0)
+}
+
+fn base_token_match(pair: &Pair, address: &str) -> bool {
+    pair.base_token.address.eq_ignore_ascii_case(address)
+}
+
+fn pair_matches_address(pair: &Pair, address: &str) -> bool {
+    base_token_match(pair, address) || pair.pair_address.eq_ignore_ascii_case(address)
 }
 
 fn gecko_network(chain: &str) -> Result<&'static str> {
