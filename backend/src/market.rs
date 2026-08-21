@@ -6,6 +6,7 @@ use std::{cmp::Ordering, time::Duration};
 
 const DEX_SEARCH: &str = "https://api.dexscreener.com/latest/dex/search";
 const DEX_PAIRS: &str = "https://api.dexscreener.com/latest/dex/pairs";
+const DEX_TOKEN_PAIRS: &str = "https://api.dexscreener.com/token-pairs/v1";
 const GECKO: &str = "https://api.geckoterminal.com/api/v2";
 
 #[derive(Clone)]
@@ -17,6 +18,7 @@ pub struct MarketClient {
 pub struct MarketSnapshot {
     pub chain_id: String,
     pub pair_address: String,
+    pub token_address: String,
     pub symbol: Option<String>,
     pub name: Option<String>,
     pub image_url: Option<String>,
@@ -25,6 +27,7 @@ pub struct MarketSnapshot {
     pub telegram_url: Option<String>,
     pub current_market_cap: f64,
     pub current_price: f64,
+    pub liquidity_usd: f64,
 }
 
 #[derive(Deserialize)]
@@ -186,12 +189,51 @@ impl MarketClient {
         snapshot_from_pair(pair)
     }
 
+    pub async fn resolve_preferred_on_chain(
+        &self,
+        token_address: &str,
+        chain_id: &str,
+    ) -> Result<MarketSnapshot> {
+        let url = format!("{DEX_TOKEN_PAIRS}/{chain_id}/{token_address}");
+        let response = self
+            .http
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<Vec<Pair>>()
+            .await?;
+        // The token-pairs endpoint is authoritative for every pool of one token;
+        // unlike ranked search results it cannot omit a migration candidate.
+        // Keep the same-chain/base-token checks as defense in depth because
+        // pair-level price and market cap describe the base side of the pool.
+        let mut pairs: Vec<Pair> = response
+            .into_iter()
+            .filter(|pair| {
+                pair.chain_id.eq_ignore_ascii_case(chain_id)
+                    && base_token_match(pair, token_address)
+                    && pair.market_cap.is_some()
+                    && pair.price_usd.is_some()
+            })
+            .collect();
+        pairs.sort_by(|a, b| {
+            liquidity(b)
+                .partial_cmp(&liquidity(a))
+                .unwrap_or(Ordering::Equal)
+        });
+        snapshot_from_pair(
+            pairs
+                .into_iter()
+                .next()
+                .context("DEX Screener found no same-chain token pair with market-cap data")?,
+        )
+    }
+
     // Tracking must stay on the exact DEX pair chosen during enrichment. Re-running
     // the broad search every 15 seconds can jump to a spoof/malformed pool for the
     // same mint and permanently inflate Max X with market caps the real chart never had.
     pub async fn resolve_locked(
         &self,
-        address: &str,
         chain_id: &str,
         pair_address: &str,
     ) -> Result<MarketSnapshot> {
@@ -209,10 +251,6 @@ impl MarketClient {
             .into_iter()
             .find(|pair| {
                 pair.pair_address.eq_ignore_ascii_case(pair_address)
-                    // Pair-address shills keep the originally posted address in
-                    // storage, so locked polling must accept that exact pair as
-                    // well as the usual base-token contract address.
-                    && pair_matches_address(pair, address)
                     && pair.market_cap.is_some()
                     && pair.price_usd.is_some()
             })
@@ -435,6 +473,7 @@ fn snapshot_from_pair(pair: Pair) -> Result<MarketSnapshot> {
     Ok(MarketSnapshot {
         chain_id: pair.chain_id,
         pair_address: pair.pair_address,
+        token_address: token.address.clone(),
         symbol: token.symbol.clone(),
         name: token.name.clone(),
         image_url: info.as_ref().and_then(|value| value.image_url.clone()),
@@ -443,6 +482,11 @@ fn snapshot_from_pair(pair: Pair) -> Result<MarketSnapshot> {
         telegram_url,
         current_market_cap,
         current_price,
+        liquidity_usd: pair
+            .liquidity
+            .as_ref()
+            .and_then(|value| value.usd)
+            .unwrap_or(0.0),
     })
 }
 

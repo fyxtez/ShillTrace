@@ -1,1 +1,3 @@
-/* TokenTable-specific extension point. Shared dashboard primitives remain in App.css to preserve the existing visual cascade. */
+/* Max X represents the best recorded result, so a modestly larger weight/size
+   distinguishes it from the live Current X value without changing row height. */
+.table-box td.max-x-value{font-size:15px;font-weight:900}

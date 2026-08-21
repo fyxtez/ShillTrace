@@ -1,1 +1,6 @@
-/* MarketChart-specific extension point. Shared dashboard primitives remain in App.css to preserve the existing visual cascade. */
+/* The plot-wide inspector highlights the nearest timestamp without requiring
+   pixel-perfect pointer placement over a low-opacity sample circle. */
+.chart .market-chart{cursor:crosshair}
+.chart .chart-point{pointer-events:none}
+.chart .chart-hover-guide{stroke:#74746f;stroke-width:1;stroke-dasharray:4 4;opacity:.7;pointer-events:none}
+.chart .chart-hover-point{fill:var(--accent-light);stroke:#151515;stroke-width:2;pointer-events:none}

@@ -86,7 +86,10 @@ async fn list_shills(
         WHERE ($1::BOOLEAN IS NULL OR $1=FALSE OR s.seen_at IS NULL)
           AND ($2::BIGINT IS NULL OR s.channel_id=$2)
           AND ($3::BOOLEAN=TRUE OR p.status='active')
-        ORDER BY s.shilled_at DESC
+        -- Telegram can assign the same timestamp to several calls in one message
+        -- batch. The insertion id breaks those ties permanently, preventing All
+        -- Tokens and New Shills from reshuffling otherwise equal-time rows.
+        ORDER BY s.shilled_at DESC, s.id ASC
     "#).bind(query.unseen).bind(query.channel_id).bind(query.include_removed.unwrap_or(false)).fetch_all(&state.pool).await?;
     Ok(Json(rows))
 }
@@ -235,10 +238,13 @@ async fn retry_token(
             return Err(ApiError::market(error));
         }
     };
-    sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,market_status='tracking',last_market_error=NULL,last_market_at=NOW(),updated_at=NOW() WHERE id=$1")
+    // Manual repair also records the canonical token CA, allowing migration
+    // discovery even when the originally posted value was a DEX pair address.
+    sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,resolved_token_address=$11,market_status='tracking',last_market_error=NULL,last_market_at=NOW(),updated_at=NOW() WHERE id=$1")
         .bind(id).bind(&snapshot.chain_id).bind(&snapshot.pair_address).bind(&snapshot.symbol)
         .bind(&snapshot.name).bind(&snapshot.image_url).bind(snapshot.current_market_cap)
-        .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url).execute(&state.pool).await?;
+        .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url)
+        .bind(&snapshot.token_address).execute(&state.pool).await?;
 
     let unavailable: Vec<(i64, i64, DateTime<Utc>)> = sqlx::query_as("SELECT id,tracking_period_id,shilled_at FROM shills WHERE token_id=$1 AND market_status='unavailable'")
         .bind(id).fetch_all(&state.pool).await?;

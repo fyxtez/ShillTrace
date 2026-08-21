@@ -243,10 +243,13 @@ async fn enrich_candidate(
 ) -> Result<()> {
     let resolved = market.resolve(&pending.address).await;
     if let Ok(snapshot) = &resolved {
-        sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,market_status='tracking',last_market_at=NOW(),last_market_error=NULL,updated_at=NOW() WHERE id=$1")
+        // Persist the canonical base-token address separately because the posted
+        // address may be a pair CA that cannot discover future pool migrations.
+        sqlx::query("UPDATE tokens SET chain_id=$2,pair_address=$3,symbol=$4,name=$5,image_url=$6,current_market_cap=$7,website_url=$8,twitter_url=$9,telegram_url=$10,resolved_token_address=$11,market_status='tracking',last_market_at=NOW(),last_market_error=NULL,updated_at=NOW() WHERE id=$1")
             .bind(pending.token_id).bind(&snapshot.chain_id).bind(&snapshot.pair_address).bind(&snapshot.symbol)
             .bind(&snapshot.name).bind(&snapshot.image_url).bind(snapshot.current_market_cap)
-            .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url).execute(pool).await?;
+            .bind(&snapshot.website_url).bind(&snapshot.twitter_url).bind(&snapshot.telegram_url)
+            .bind(&snapshot.token_address).execute(pool).await?;
     } else {
         let detail = resolved.as_ref().unwrap_err().to_string();
         // Only a genuine "no pair" result is eligible for wallet probing. Rate
@@ -343,4 +346,3 @@ async fn enrich_candidate(
     let _ = events.send(json!({"type":"shill_updated","shill_id":pending.shill_id}).to_string());
     Ok(())
 }
-
