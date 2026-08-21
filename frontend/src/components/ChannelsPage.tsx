@@ -15,7 +15,14 @@ export function ChannelsPage({ channels, shills, ignored, refresh, onOpenShill }
     // toggle only changes presentation and never resumes Telegram monitoring.
     const visibleChannels = useMemo(() => channels.filter(channel => channel.is_ignored === ignored && (!ignored || showHidden || !channel.is_hidden) && channel.name.toLowerCase().includes(channelSearch.trim().toLowerCase())), [channels, ignored, showHidden, channelSearch])
     const hiddenCount = channels.filter(channel => channel.is_ignored && channel.is_hidden).length
-    const pinned = visibleChannels.filter(channel => channel.is_pinned), all = visibleChannels.filter(channel => !channel.is_pinned)
+    // Activity ordering is applied inside each section so the latest caller rises
+    // to the top of Pinned or All Channels without crossing the pin boundary.
+    // Name and id provide deterministic ties for never-active/equal-time channels.
+    const newestShillFirst = (items: Channel[]) => [...items].sort((a, b) => {
+        const activityDifference = (b.last_shill_at ? new Date(b.last_shill_at).getTime() : 0) - (a.last_shill_at ? new Date(a.last_shill_at).getTime() : 0)
+        return activityDifference || a.name.localeCompare(b.name) || a.telegram_id - b.telegram_id
+    })
+    const pinned = newestShillFirst(visibleChannels.filter(channel => channel.is_pinned)), all = newestShillFirst(visibleChannels.filter(channel => !channel.is_pinned))
     const lastShill = (channel: Channel) => channel.last_shill_at ? `Last shill: ${longAgo(channel.last_shill_at)} (${new Date(channel.last_shill_at).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })})` : 'Last shill: never'
     // Pinned and regular monitored channels are separate, non-duplicated groups;
     // ignored channels retain one list and emphasize their most recent activity.
